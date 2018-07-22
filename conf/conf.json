@@ -1,0 +1,18 @@
+{
+    "ratio_of_adults": 0.774,    
+    "ratio_of_adult_smartphone_ownders": 0.77,
+    "num_queries_per_smartphone_per_hour": 1.,
+    "query_dist": [0.56, 0.14, 0.12, 0.03, 0.08, 0.02, 0.05],
+    "query_dist2": {
+        "city_self": 0.56,
+        "city_others": 0.14,
+        "county_self": 0.12,
+        "county_others": 0.03,
+        "state_self": 0.08,
+        "state_others": 0.02,
+        "region": 0.05
+    },
+    "alpha": 0.0,
+    "beta": 0.0,
+    "gamma": 0.0
+}
