@@ -55,23 +55,23 @@ def load_data(mapping):
 	return dc, topo
 
 
-def init_query_clients(conf):
-	city_ids = geo_db.loc[geo_db.type == 'city'].index
-	query_clients = [QueryClient(conf, geo_db, src_id) for src_id in city_ids]
-	return query_clients
-	
-
 def init(args):
 	conf = init_conf(args)
-	# query_clients = init_query_clients(conf)
-	return conf
+	dc, topo = load_data(conf['mapping'])		
+
+	city_ids = dc.loc[dc.type == 'city'].index
+	query_clients = [QueryClient(conf, dc, topo, id) for id in city_ids]
+
+	return conf, dc, topo, query_clients
 	
 
 def main(args):
 	global dc, topo
-	conf = init(args)
+	conf, dc, topo, query_clients = init(args)
 	log.info('Configs: {}'.format(conf))
-	dc, topo = load_data(conf['mapping'])
+
+	for query_client in query_clients:
+		query_client.estimate_query_resp_times()
 
 	
 if __name__ == '__main__':

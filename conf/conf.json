@@ -2,6 +2,8 @@
     "ratio_of_adults": 0.774,    
     "ratio_of_adult_smartphone_ownders": 0.77,
     "num_queries_per_smartphone_per_hour": 1.0,
+    "query_req_bytes": 128,
+    "query_resp_bytes": 2048,
     "query_dist": [0.56, 0.14, 0.12, 0.03, 0.08, 0.02, 0.05],
     "query_dist2": {
         "city_self": 0.56,
