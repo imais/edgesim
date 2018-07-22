@@ -29,8 +29,6 @@ class Query(object):
 		self.src_lng = src_lng
 		self.dest_id = dest_id
 
-	
-		
 
 	def compute_query_time(self, total_query_num):
 		return query_time
@@ -93,9 +91,9 @@ class QueryClient(object):
 
 
 	def compute_resp_time(self):
-		for query in self.queries:
+		# for query in self.queries:
+		return
 			
-				
 					 
 	def __init__(self, conf, geo_db, city):
 		self.conf = conf
@@ -109,36 +107,3 @@ class QueryClient(object):
 		self.comm_params = self.conf['comm_params']
 		
 		self.queries = create_queries()
-
-
-
-# constants
-# https://www.techwalla.com/articles/network-latency-milliseconds-per-mile
-LATENCY_MS_PER_MILE = 0.01 
-
-class Producer(object):
-	def __init__(self, max_x, max_y, data_size, avg_interval):
-		self.x = random.uniform(0, 1) * max_x
-		self.y = random.uniform(0, 1) * max_y
-		self.data_size = data_size
-		self.avg_interval = avg_interval
-
-	def set_dest(self, node):
-		self.node = node
-
-	def compute_window_data(self, time_window):
-		time = 0
-		total_data_size = 0
-		while time < time_window:
-			total_data_size += self.data_size
-			time += expon.rvs(scale=self.avg_interval, size=1)[0]
-		return total_data_size
-
-
-class Consumer(object):
-	def __init__(self, max_x, max_y, avg_interval):
-		self.x = random.uniform(0, 1) * max_x
-		self.y = random.uniform(0, 1) * max_y
-		self.avg_interval = avg_interval
-		
-		
