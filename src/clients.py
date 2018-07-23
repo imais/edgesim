@@ -3,13 +3,12 @@ import math
 import numpy as np
 import random
 import sys
-import latlng_util
-from enum import Enum
+from latlng_util import LatLngUtil
+from enum import IntEnum
 from scipy.stats import expon
 
+
 log = logging.getLogger()
-
-
 
 
 class Comm:
@@ -41,45 +40,45 @@ class Comm:
 		return Comm.sigma1 + Comm.sigma2 * dist_mi + data / Comm.bw_mobile	
 
 
-class Execute:
+class Exec:
 	@staticmethod
 	def init(dc, beta1, beta2, gamma1, gamma2, theta1, theta2):
-		Comm.dc = dc
-		Comm.beta1 = beta1
-		Comm.beta2 = beta2
-		Comm.gamma1 = gamma1
-		Comm.gamma2 = gamma2
-		Comm.theta1 = theta1
-		Comm.theta2 = theta2		
+		Exec.dc = dc
+		Exec.beta1 = beta1
+		Exec.beta2 = beta2
+		Exec.gamma1 = gamma1
+		Exec.gamma2 = gamma2
+		Exec.theta1 = theta1
+		Exec.theta2 = theta2		
 
 		
 	@staticmethod
 	def estimate_map_reduce_time(dc_id, data):
-		m = Comm.dc.loc[dc_id].m
-		return data / (Execute.beta1 + Execute.beta2 * m)
+		m = Exec.dc.loc[dc_id].m
+		return data / (Exec.beta1 + Exec.beta2 * m)
 
 	
 	@staticmethod
 	def estimate_reduce_time(dc_id, data):
-		m = Comm.dc.loc[dc_id].m
-		return data / (Execute.gamma1 + Execute.gamma2 * m)
+		m = Exec.dc.loc[dc_id].m
+		return data / (Exec.gamma1 + Exec.gamma2 * m)
 
 	
 	@staticmethod
 	def estimate_query_time(dc_id, data):
-		m = Comm.dc.loc[dc_id].m
-		return data / (Execute.theta1 + Execute.theta2 * m)		
+		m = Exec.dc.loc[dc_id].m
+		return data / (Exec.theta1 + Exec.theta2 * m)		
 
 
-class QueryDestType(Enum):
-	NULL = 0
-	CITY_SELF = 1
-	CITY_OTHER = 2
-	COUNTY_SELF = 3
-	COUNTY_OTHER = 4
-	STATE_SELF = 5
-	STATE_OTHER = 6
-	REGION = 7
+class QueryDestType(IntEnum):
+	CITY_SELF = 0
+	CITY_OTHER = 1
+	COUNTY_SELF = 2
+	COUNTY_OTHER = 3
+	STATE_SELF = 4
+	STATE_OTHER = 5
+	REGION = 6
+	UNKNOWN = 7
 
 	def __str__(self):
 		return self.name
@@ -103,7 +102,7 @@ class Query(object):
 
 	def estimate_resp_time(self, query_num):
 		self.comm_req_time = Comm.estimate_query_comm_time(self.src_lat, self.src_lng, self.dest_id, Query.query_data_bytes)
-		self.query_time = Execute.estimate_query_time(self.dest_id, query_num * Query.query_data_bytes)
+		self.query_time = Exec.estimate_query_time(self.dest_id, query_num * Query.query_data_bytes)
 		self.comm_resp_time = Comm.estimate_query_comm_time(self.src_lat, self.src_lng, self.dest_id, Query.query_resp_bytes)
 		self.total_resp_time = self.comm_req_time + self.query_time + self.comm_resp_time
 
@@ -112,26 +111,27 @@ class QueryClient(object):
 	num_queries = {}
 
 	def create_queries(self):
-		queries = []
+		self.queries = []
 
 		city_others_indices = self.dc.loc[(self.dc.type == 'city') &
-										  (self.dc.index != self.city.name)]
+										  (self.dc.index != self.city.name)].index
+
 		county = self.dc.loc[self.city.parent_id]
 		county_others_indices = self.dc.loc[(self.dc.type == 'county') &
-											(self.dc.index != county.name)]
+											(self.dc.index != county.name)].index
 		state =  self.dc.loc[county.parent_id]
 		state_others_indices = self.dc.loc[(self.dc.type == 'state') &
-										   (self.dc.index != state.name)]
-		region = self.dc.loc[state.parent_id]
+										   (self.dc.index != state.name)].index
 
 		for i in range(self.num_queries_per_min):
 			r = random.uniform(0, 1)
-			total = 0
-			dest_type = QueryDestType.CITY_SELF
-			while self.conf['query_dist'][dest_type] < r:
+			dest_type = QueryDestType.CITY_SELF			
+			total = self.conf['query_dist'][int(dest_type)]
+			# query_dist: [city_self, city_others, county_self, county_others, state_self, state_others, region]
+			while total < r:
 				dest_type += 1
+				total += self.conf['query_dist'][int(dest_type)]				
 
-			(src_lat, src_lng) = self.get_rnd_lat_lng()				
 			if dest_type == QueryDestType.CITY_SELF:
 				dest_id = self.city.name
 			elif dest_type == QueryDestType.CITY_OTHER:
@@ -146,20 +146,22 @@ class QueryClient(object):
 				dest_id = random.choice(state_others_indices)
 			else:
 				# dest_type == QueryDestType.REGION
-				dest_id = region.name
+				dest_id = self.dc.loc[state.parent_id].name
 
-			queries.append(Query(src_lat, src_lng, dest_id))
+			(src_lat, src_lng) = LatLngUtil.get_rand_lat_lng(self.city.lat, self.city.lng,
+															 360, self.city_radius)
+			self.queries.append(Query(src_lat, src_lng, dest_id))
+			
 			if dest_id in QueryClient.num_queries:
 				QueryClient.num_queries[dest_id] += 1
 			else:
 				QueryClient.num_queries[dest_id] = 1				
-						   
-		return queries
 
 
 	def estimate_query_resp_times(self):
+		print('Estimating query resp time from {}...'.format(self.city['name']))
 		for query in self.queries:
-			query.estimate_resp_time(num_queries[query.dest_id])
+			query.estimate_resp_time(QueryClient.num_queries[query.dest_id])
 			
 					 
 	def __init__(self, conf, dc, topo, city):
@@ -171,4 +173,4 @@ class QueryClient(object):
 		self.num_queries_per_min = int(city.population * self.conf['ratio_of_adults'] * \
 									   self.conf['ratio_of_adult_smartphone_owners'] * \
 									   self.conf['num_queries_per_smartphone_per_hour'] / 60)
-		self.queries = create_queries()
+		self.create_queries()

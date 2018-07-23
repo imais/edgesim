@@ -15,7 +15,7 @@ class LatLngUtil:
 		lat1 = math.radians(lat_deg)
 		lng1 = math.radians(lng_deg)
 		bearing = math.radians(bearing_deg)
-		relative_dist = dist_mi * KM_PER_MILE / EARTH_RADIUS_KM
+		relative_dist = dist_mi * LatLngUtil.KM_PER_MILE / LatLngUtil.EARTH_RADIUS_KM
 		lat2 = math.asin(math.sin(lat1) * math.cos(relative_dist) + math.cos(lat1) * math.sin(relative_dist) * math.cos(bearing))
 		lng2 = lng1 + math.atan2(math.sin(bearing) * math.sin(relative_dist) * math.cos(lat1), math.cos(relative_dist) - math.sin(lat1) * math.sin(lat2))
 		return (lat2, lng2)
@@ -31,7 +31,7 @@ class LatLngUtil:
 		a = math.sin(delta_lat/2) * math.sin(delta_lat/2) + math.cos(lat1) * math.cos(lat2) * math.sin(delta_lng/2) * math.sin(delta_lng/2);
 		c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a));
 
-		return (EARTH_RADIUS_KM / KM_PER_MILE) * c;
+		return (LatLngUtil.EARTH_RADIUS_KM / LatLngUtil.KM_PER_MILE) * c;
 
 
 	@staticmethod
