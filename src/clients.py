@@ -13,7 +13,7 @@ log = logging.getLogger()
 
 class Comm:
 	@staticmethod
-	def init(dc, sigma1, sigma2, bw_mobile, bw_wan, bw_lan):
+	def set_params(dc, sigma1, sigma2, bw_mobile, bw_wan, bw_lan):
 		Comm.dc = dc
 		Comm.sigma1 = sigma1
 		Comm.sigma2 = sigma2
@@ -42,7 +42,7 @@ class Comm:
 
 class Exec:
 	@staticmethod
-	def init(dc, beta1, beta2, gamma1, gamma2, theta1, theta2):
+	def set_params(dc, beta1, beta2, gamma1, gamma2, theta1, theta2):
 		Exec.dc = dc
 		Exec.beta1 = beta1
 		Exec.beta2 = beta2
@@ -85,13 +85,13 @@ class QueryDestType(IntEnum):
 
 
 class Query(object):
-	query_data_bytes = 0
+	query_req_bytes = 0
 	query_resp_bytes = 0
 
 	@staticmethod
 	def set_params(query_req_bytes, query_resp_bytes):
 		Query.query_req_bytes = query_req_bytes
-		Query.query_resp_bytes = query_resp_bytes		
+		Query.query_resp_bytes = query_resp_bytes	
 		
 	
 	def __init__(self, src_lat, src_lng, dest_id):
@@ -101,9 +101,18 @@ class Query(object):
 
 
 	def estimate_resp_time(self, query_num):
-		self.comm_req_time = Comm.estimate_query_comm_time(self.src_lat, self.src_lng, self.dest_id, Query.query_data_bytes)
-		self.query_time = Exec.estimate_query_time(self.dest_id, query_num * Query.query_data_bytes)
+		self.comm_req_time = Comm.estimate_query_comm_time(self.src_lat, self.src_lng, self.dest_id, Query.query_req_bytes)
+		if math.isnan(self.comm_req_time):
+			raise ValueError('self.comm_req_time is nan')
+		
+		self.query_time = Exec.estimate_query_time(self.dest_id, query_num * Query.query_req_bytes)
+		if math.isnan(self.query_time):
+			raise ValueError('self.query_time is nan')
+		
 		self.comm_resp_time = Comm.estimate_query_comm_time(self.src_lat, self.src_lng, self.dest_id, Query.query_resp_bytes)
+		if math.isnan(self.comm_resp_time):
+			raise ValueError('self.query_time): is nan')		
+
 		self.total_resp_time = self.comm_req_time + self.query_time + self.comm_resp_time
 
 
@@ -162,6 +171,7 @@ class QueryClient(object):
 		print('Estimating query resp time from {}...'.format(self.city['name']))
 		for query in self.queries:
 			query.estimate_resp_time(QueryClient.num_queries[query.dest_id])
+		return [q.total_resp_time for q in self.queries]
 			
 					 
 	def __init__(self, conf, dc, topo, city):

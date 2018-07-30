@@ -18,7 +18,7 @@ class LatLngUtil:
 		relative_dist = dist_mi * LatLngUtil.KM_PER_MILE / LatLngUtil.EARTH_RADIUS_KM
 		lat2 = math.asin(math.sin(lat1) * math.cos(relative_dist) + math.cos(lat1) * math.sin(relative_dist) * math.cos(bearing))
 		lng2 = lng1 + math.atan2(math.sin(bearing) * math.sin(relative_dist) * math.cos(lat1), math.cos(relative_dist) - math.sin(lat1) * math.sin(lat2))
-		return (lat2, lng2)
+		return (math.degrees(lat2), math.degrees(lng2))
 
 	
 	@staticmethod

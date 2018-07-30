@@ -1,17 +1,17 @@
-id	type	name	parent_id	lat	lng	population	land_area	water_area	m
-1	city	Troy	4	42.735812	-73.675321	49702	10.357	0.7	2
-2	city	Brunswick	4	42.745843	-73.585147	12778	44.347	0.28	2
-3	city	Hoosick	4	42.876802	-73.351525	6824	63.032	0.113	2
-4	county	Rensselaer	8	42.710421	-73.513845	nan	nan	nan	4
-5	city	Albany	7	42.665745	-73.798353	98111	21.388	0.548	2
-6	city	Watervliet	7	42.724883	-73.707011	10120	1.345	0.13	2
-7	county	Albany	8	42.58824	-73.97401	nan	nan	nan	4
-8	state	New York	100	43.2994	-74.2179	nan	nan	nan	8
-9	city	Boston	11	42.3601	-71.0589	609942	48.42	41.21	2
-10	city	Winthrop	11	42.3748	-70.9863	18190	2	6.3	2
-11	county	Suffolk	15	42.3523	-71.0504	nan	nan	nan	4
-12	city	Somerville	14	42.3876	-71.0995	81322	4.1	0.1	2
-13	city	Cambridge	14	42.3736	-71.1097	105162	6.43	0.7	2
-14	county	Middlesex	15	42.4672	-71.2874	nan	nan	nan	4
-15	state	Massachusetts	100	42.4072	-71.3824	nan	nan	nan	8
-100	region	Northern Virginia	-1	nan	nan	nan	nan	nan	16
+id	type	name	parent_id	county	state_code	lat	lng	population	land_area	water_area	m
+1	city	Troy	4	Rensselaer County	NY	42.735812	-73.675321	49702	10.357	0.7	2
+2	city	Brunswick	4	Rensselaer County	NY	42.745843	-73.585147	12778	44.347	0.28	2
+3	city	Hoosick	4	Rensselaer County	NY	42.876802	-73.351525	6824	63.032	0.113	2
+4	county	Rensselaer County	8	nan	NY	42.710421	-73.513845	nan	nan	nan	4
+5	city	Albany	7	Albany County	NY	42.665745	-73.798353	98111	21.388	0.548	2
+6	city	Watervliet	7	Albany County	NY	42.724883	-73.707011	10120	1.345	0.13	2
+7	county	Albany County	8	nan	NY	42.58824	-73.97401	nan	nan	nan	4
+8	state	New York	100	nan	NY	43.2994	-74.2179	nan	nan	nan	8
+9	city	Boston	11	Suffolk County	MA	42.3601	-71.0589	609942	48.42	41.21	2
+10	city	Winthrop	11	Suffolk County	MA	42.3748	-70.9863	18190	2	6.3	2
+11	county	Suffolk County	15	nan	MA	42.3523	-71.0504	nan	nan	nan	4
+12	city	Somerville	14	Middlesex County	MA	42.3876	-71.0995	81322	4.1	0.1	2
+13	city	Cambridge	14	Middlesex County	MA	42.3736	-71.1097	105162	6.43	0.7	2
+14	county	Middlesex County	15	nan	MA	42.4672	-71.2874	nan	nan	nan	4
+15	state	Massachusetts	100	nan	MA	42.4072	-71.3824	nan	nan	nan	8
+100	region	Northern Virginia	-1	nan	nan	39.0300218	-77.5121424	nan	nan	nan	16

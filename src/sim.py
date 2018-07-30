@@ -4,7 +4,7 @@ import logging
 import logging.config
 import pandas as pd
 import os
-from clients import Comm, Exec, QueryClient
+from clients import Comm, Exec, Query, QueryClient
 
 log = logging.getLogger()
 logging.basicConfig(level=logging.INFO)
@@ -59,11 +59,12 @@ def init(args):
 	conf = init_conf(args)
 	dc, topo = load_data(conf['mapping'])
 
-	Comm.init(dc, conf['sigmas'][0], conf['sigmas'][1], 
-			  conf['omegas'][0], conf['omegas'][1], conf['omegas'][2]);
-	Exec.init(dc, conf['betas'][0], conf['betas'][1], 
-			  conf['gammas'][0], conf['gammas'][1],
-			  conf['thetas'][0], conf['thetas'][1])
+	Comm.set_params(dc, conf['sigmas'][0], conf['sigmas'][1], 
+					conf['omegas'][0], conf['omegas'][1], conf['omegas'][2]);
+	Exec.set_params(dc, conf['betas'][0], conf['betas'][1], 
+					conf['gammas'][0], conf['gammas'][1],
+					conf['thetas'][0], conf['thetas'][1])
+	Query.set_params(conf['query_req_bytes'], conf['query_resp_bytes'])
 
 	city_ids = dc.loc[dc.type == 'city'].index
 	query_clients = []
@@ -75,12 +76,13 @@ def init(args):
 	
 
 def main(args):
-	global dc, topo
+	global dc, topo, resp_times
 	conf, dc, topo, query_clients = init(args)
 	log.info('Configs: {}'.format(conf))
 
+	resp_times = []
 	for query_client in query_clients:
-		query_client.estimate_query_resp_times()
+		resp_times += query_client.estimate_query_resp_times()
 
 	
 if __name__ == '__main__':
