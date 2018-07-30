@@ -184,3 +184,41 @@ class QueryClient(object):
 									   self.conf['ratio_of_adult_smartphone_owners'] * \
 									   self.conf['num_queries_per_smartphone_per_hour'] / 60)
 		self.create_queries()
+
+
+class DataAggregator:
+	@staticmethod
+	def set_params(conf, dc, topo):
+		DataAggregator.conf = conf
+		DataAggregator.dc = dc
+		DataAggregator.topo = topo
+
+
+	@staticmethod
+	def estimate_aggr_time():
+		conf = DataAggregator.conf
+		dc = DataAggregator.dc
+		topo = DataAggregator.topo
+		data_out = conf['bytes_reduce_out']
+		level_types = [['borough', 'cdp', 'city', 'municipality', 'other', 'town', 'township', 'village'], ['county'], ['state'], ['region']]
+		L = len(level_types)
+
+		total_aggr_time = 0.0
+		for l in range(L):
+			aggr_times = []
+			entities = topo.loc[topo.type.isin(level_types[l])]
+			for index, entity in entities.iterrows():
+				if l == 0:
+					topo.loc[index, 'data_in'] = dc.loc[index].population * conf['sensors_per_person'] * conf['bytes_per_sensor_per_time_window']
+				dc1_id = entity.dc_id					
+				if l < L - 1:
+					topo.loc[entity.parent_id, 'data_in'] += data_out
+					dc2_id = topo.loc[entity.parent_id].dc_id
+					aggr_time = Exec.estimate_map_reduce_time(dc1_id, topo.loc[index, 'data_in']) + Comm.estimate_dc_comm_time(dc1_id, dc2_id, data_out)
+				else:
+					aggr_time = Exec.estimate_map_reduce_time(dc1_id, topo.loc[index, 'data_in'])
+				aggr_times.append(aggr_time)
+			# print aggr_times
+			total_aggr_time += max(aggr_times)
+		# print total_aggr_time
+		return total_aggr_time

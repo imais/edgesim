@@ -4,7 +4,7 @@ import logging
 import logging.config
 import pandas as pd
 import os
-from clients import Comm, Exec, Query, QueryClient
+from clients import Comm, Exec, Query, QueryClient, DataAggregator
 
 log = logging.getLogger()
 logging.basicConfig(level=logging.INFO)
@@ -32,10 +32,11 @@ def init_conf(args):
 
 def load_data(mapping):
 	dc = pd.read_csv(DC_FILE, header=0, index_col=0, sep='\t')
-	topo = pd.DataFrame(columns=['type', 'name', 'parent_id', 'dc_id'])
+	topo = pd.DataFrame(columns=['type', 'name', 'parent_id', 'dc_id', 'data_in'])
 	topo.type = dc.type
 	topo.name = dc.name
 	topo.parent_id = dc.parent_id
+	topo.data_in = 0.0
 	if mapping == 'a':
 		# Use all level DCs
 		topo.dc_id = dc.index
@@ -65,6 +66,8 @@ def init(args):
 					conf['gammas'][0], conf['gammas'][1],
 					conf['thetas'][0], conf['thetas'][1])
 	Query.set_params(conf['query_req_bytes'], conf['query_resp_bytes'])
+	DataAggregator.set_params(conf, dc, topo)
+	DataAggregator.estimate_aggr_time()
 
 	city_ids = dc.loc[dc.type == 'city'].index
 	query_clients = []
