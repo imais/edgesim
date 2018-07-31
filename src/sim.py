@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import logging.config
+import numpy as np
 import pandas as pd
 import os
 from clients import Comm, Exec, Query, QueryClient, DataAggregator
@@ -64,10 +65,9 @@ def init(args):
 					conf['omegas'][0], conf['omegas'][1], conf['omegas'][2]);
 	Exec.set_params(dc, conf['betas'][0], conf['betas'][1], 
 					conf['gammas'][0], conf['gammas'][1],
-					conf['thetas'][0], conf['thetas'][1])
+					conf['thetas'][0], conf['thetas'][1], conf['lambda'])
 	Query.set_params(conf['query_req_bytes'], conf['query_resp_bytes'])
 	DataAggregator.set_params(conf, dc, topo)
-	DataAggregator.estimate_aggr_time()
 
 	city_ids = dc.loc[dc.type == 'city'].index
 	query_clients = []
@@ -83,10 +83,16 @@ def main(args):
 	conf, dc, topo, query_clients = init(args)
 	log.info('Configs: {}'.format(conf))
 
+	max_aggr_times = DataAggregator.estimate_aggr_time()
+	
 	resp_times = []
 	for query_client in query_clients:
 		resp_times += query_client.estimate_query_resp_times()
 
+	print("Total Aggregation Time: {}ms (lv1={}ms, lv2={}ms, lv3={}ms, lv4={}ms)".format(np.sum(max_aggr_times) * 1000, max_aggr_times[0] * 1000, max_aggr_times[1] * 1000, max_aggr_times[2] * 1000, max_aggr_times[3] * 1000))		
+	print("Response Time: max={}ms, avg={}ms, min={}ms".
+		  format(np.max(resp_times)*1000, np.mean(resp_times)*1000, np.min(resp_times)*1000))
+		
 	
 if __name__ == '__main__':
 	args = parse_args()

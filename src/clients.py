@@ -10,6 +10,9 @@ from scipy.stats import expon
 
 log = logging.getLogger()
 
+level_types = [['borough', 'cdp', 'city', 'municipality', 'other', 'town', 'township', 'village'], ['county'], ['state'], ['region']]
+L = len(level_types)
+
 
 class Comm:
 	@staticmethod
@@ -29,7 +32,8 @@ class Comm:
 		dist_mi = LatLngUtil.compute_dist_mi(dc1.lat, dc1.lng,
 											 dc2.lat, dc2.lng)
 		bw = Comm.bw_lan if dc1_id == dc2_id else Comm.bw_wan
-		return Comm.sigma1 + Comm.sigma2 * dist_mi + data / bw
+		time = Comm.sigma1 + Comm.sigma2 * dist_mi + data / bw
+		return time
 
 		
 	@staticmethod
@@ -37,19 +41,21 @@ class Comm:
 		dc = Comm.dc.loc[dc_id]
 		dist_mi = LatLngUtil.compute_dist_mi(client_lat, client_lng,
 											 dc.lat, dc.lng)
-		return Comm.sigma1 + Comm.sigma2 * dist_mi + data / Comm.bw_mobile	
+		time = Comm.sigma1 + Comm.sigma2 * dist_mi + data / Comm.bw_mobile
+		return time
 
 
 class Exec:
 	@staticmethod
-	def set_params(dc, beta1, beta2, gamma1, gamma2, theta1, theta2):
+	def set_params(dc, beta1, beta2, gamma1, gamma2, theta1, theta2, latency):
 		Exec.dc = dc
 		Exec.beta1 = beta1
 		Exec.beta2 = beta2
 		Exec.gamma1 = gamma1
 		Exec.gamma2 = gamma2
 		Exec.theta1 = theta1
-		Exec.theta2 = theta2		
+		Exec.theta2 = theta2
+		Exec.latency = latency
 
 		
 	@staticmethod
@@ -65,9 +71,9 @@ class Exec:
 
 	
 	@staticmethod
-	def estimate_query_time(dc_id, data):
+	def estimate_query_time(dc_id, query_num):
 		m = Exec.dc.loc[dc_id].m
-		return data / (Exec.theta1 + Exec.theta2 * m)		
+		return Exec.latency * (query_num / (Exec.theta1 + Exec.theta2 * m))
 
 
 class QueryDestType(IntEnum):
@@ -105,7 +111,7 @@ class Query(object):
 		if math.isnan(self.comm_req_time):
 			raise ValueError('self.comm_req_time is nan')
 		
-		self.query_time = Exec.estimate_query_time(self.dest_id, query_num * Query.query_req_bytes)
+		self.query_time = Exec.estimate_query_time(self.dest_id, query_num)
 		if math.isnan(self.query_time):
 			raise ValueError('self.query_time is nan')
 		
@@ -122,14 +128,14 @@ class QueryClient(object):
 	def create_queries(self):
 		self.queries = []
 
-		city_others_indices = self.dc.loc[(self.dc.type == 'city') &
+		city_others_indices = self.dc.loc[self.dc.type.isin(level_types[0]) &
 										  (self.dc.index != self.city.name)].index
 
 		county = self.dc.loc[self.city.parent_id]
-		county_others_indices = self.dc.loc[(self.dc.type == 'county') &
+		county_others_indices = self.dc.loc[self.dc.type.isin(level_types[1]) &
 											(self.dc.index != county.name)].index
 		state =  self.dc.loc[county.parent_id]
-		state_others_indices = self.dc.loc[(self.dc.type == 'state') &
+		state_others_indices = self.dc.loc[self.dc.type.isin(level_types[2]) &
 										   (self.dc.index != state.name)].index
 
 		for i in range(self.num_queries_per_min):
@@ -200,10 +206,8 @@ class DataAggregator:
 		dc = DataAggregator.dc
 		topo = DataAggregator.topo
 		data_out = conf['bytes_reduce_out']
-		level_types = [['borough', 'cdp', 'city', 'municipality', 'other', 'town', 'township', 'village'], ['county'], ['state'], ['region']]
-		L = len(level_types)
 
-		total_aggr_time = 0.0
+		max_aggr_times = []
 		for l in range(L):
 			aggr_times = []
 			entities = topo.loc[topo.type.isin(level_types[l])]
@@ -219,6 +223,6 @@ class DataAggregator:
 					aggr_time = Exec.estimate_map_reduce_time(dc1_id, topo.loc[index, 'data_in'])
 				aggr_times.append(aggr_time)
 			# print aggr_times
-			total_aggr_time += max(aggr_times)
+			max_aggr_times.append(max(aggr_times))
 		# print total_aggr_time
-		return total_aggr_time
+		return max_aggr_times
