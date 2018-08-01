@@ -14,4 +14,4 @@ id	type	name	parent_id	county	state_code	lat	lng	population	land_area	water_area
 13	city	Cambridge	14	Middlesex County	MA	42.3736	-71.1097	105162	6.43	0.7	2
 14	county	Middlesex County	15	nan	MA	42.4672	-71.2874	nan	nan	nan	4
 15	state	Massachusetts	100	nan	MA	42.4072	-71.3824	nan	nan	nan	8
-100	region	Northern Virginia	-1	nan	nan	39.0300218	-77.5121424	nan	nan	nan	16
+100	region	Northern Virginia	-1	nan	VA	39.0300218	-77.5121424	nan	nan	nan	16

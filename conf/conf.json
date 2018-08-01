@@ -1,7 +1,8 @@
 {
     "ratio_of_adults": 0.774,    
     "ratio_of_adult_smartphone_owners": 0.77,
-    "num_queries_per_smartphone_per_hour": 1.0,
+    "queries_per_smartphone_per_hour": 1.0,
+    "test_duration_sec": 30.0,
     "sensors_per_person": 0.0001073,
     "bytes_per_sensor_per_time_window": 128,
     "bytes_reduce_out": 32,
