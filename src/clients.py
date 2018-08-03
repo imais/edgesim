@@ -12,6 +12,8 @@ log = logging.getLogger()
 
 
 class Comm:
+
+	
 	@staticmethod
 	def set_params(dc, sigma1, sigma2, bw_mobile, bw_wan, bw_lan):
 		Comm.dc = dc
@@ -222,13 +224,42 @@ class QueryClient(object):
 		self.create_queries()
 
 
+class DataAggregationResult:
+	def __init__(self, level, aggr_time, exec_time, comm_time,
+				 dc1_id, dc1_name, dc1_data_in, dc1_m,
+				 dc2_id, dc2_name):
+		self.level = level
+		self.aggr_time = aggr_time
+		self.exec_time = exec_time
+		self.comm_time = comm_time
+		self.dc1_id = dc1_id
+		self.dc1_name = dc1_name
+		self.dc1_data_in = dc1_data_in
+		self.dc1_m = dc1_m
+		self.dc2_id = dc2_id
+		self.dc2_name = dc2_name
+
+
+	def __str__(self):
+		s = 'L{}: time(total:{:.3f}, exec:{:.3f}, comm:{:.3f}) ms, dc1(id:{}, name:{}, data_in:{:.3f} bytes, m:{}), dc2(id:{}, name:{})'.format(self.level, self.aggr_time, self.exec_time, self.comm_time, self.dc1_id, self.dc1_name, self.dc1_data_in, self.dc1_m, self.dc2_id, self.dc2_name)
+		return s
+
+	
+	def to_csv(self):
+		s = '{}, {:.3f}, {:.3f}, {:.3f}, {}, {}, {:.3f} {}, {}, {}'.format(self.level, self.aggr_time, self.exec_time, self.comm_time, self.dc1_id, self.dc1_name, self.dc1_data_in, self.dc1_m, self.dc2_id, self.dc2_name)
+		return s
+
+		
 class DataAggregator:
+	mobile_data = 0.0
+	wan_data = 0.0
+	lan_data = 0.0
+	
 	@staticmethod
 	def set_params(conf, dc, topo):
 		DataAggregator.conf = conf
 		DataAggregator.dc = dc
 		DataAggregator.topo = topo
-
 
 	@staticmethod
 	def aggregate():
@@ -237,36 +268,47 @@ class DataAggregator:
 		topo = DataAggregator.topo
 		data_out = conf['bytes_reduce_out']
 
-		max_aggr_results = []
+		max_results = []
 		for l in range(Hierarchy.L):
-			aggr_results = []
+			results = []
 			entities = topo.loc[topo.type.isin(Hierarchy.levels[l])]
 			for index, entity in entities.iterrows():
 				if l == 0:
 					topo.loc[index, 'data_in'] = dc.loc[index].population * conf['sensors_per_person'] * conf['bytes_per_sensor_per_time_window']
+					
 				dc1_id = entity.dc_id					
 				if l < Hierarchy.L - 1:
 					topo.loc[entity.parent_id, 'data_in'] += data_out
 					dc2_id = topo.loc[entity.parent_id].dc_id
-					aggr_time = Exec.estimate_map_reduce_time(dc1_id, topo.loc[index, 'data_in']) + Comm.estimate_dc_comm_time(dc1_id, dc2_id, data_out)
+					exec_time = Exec.estimate_map_reduce_time(dc1_id, topo.loc[index, 'data_in'])
+					comm_time = Comm.estimate_dc_comm_time(dc1_id, dc2_id, data_out)
+					aggr_time = exec_time + comm_time
+					if l == 0:
+						DataAggregator.mobile_data += topo.loc[index, 'data_in']
+					elif dc1_id == dc2_id:
+						DataAggregator.lan_data += topo.loc[index, 'data_in']
+					else:
+						DataAggregator.wan_data += topo.loc[index, 'data_in']				
 				else:
 					dc2_id = None
-					aggr_time = Exec.estimate_map_reduce_time(dc1_id, topo.loc[index, 'data_in'])
-				result = (aggr_time, dc1_id, dc2_id, topo.loc[index, 'data_in'])
-				aggr_results.append(result)
-					
-			max_aggr_results.append(max(aggr_results, key=lambda (a, b, c, d): a))
+					exec_time = Exec.estimate_map_reduce_time(dc1_id, topo.loc[index, 'data_in'])
+					comm_time = 0.0
+					aggr_time = exec_time
 
-		return max_aggr_results
+				# save time results in msec
+				result = DataAggregationResult(l, aggr_time*1000, exec_time*1000,
+											   comm_time*1000 if comm_time is not None else None,
+											   dc1_id, dc.loc[dc1_id, 'name'],
+											   topo.loc[index, 'data_in'], dc.loc[dc1_id, 'm'], 
+											   dc2_id,
+											   dc.loc[dc2_id, 'name'] if dc2_id is not None else None)
+				results.append(result)
 
+			max_results.append(max(results, key=lambda (result): result.aggr_time))
 
-	@staticmethod	
-	def result_to_str(res):
-		dc = DataAggregator.dc
-		s = str(res[0]) + 'ms, dc1=' + dc.loc[res[1], 'name'] + "/" + dc.loc[res[1], 'state_code']
-		if res[2] is not None:
-			s += ', dc2=' + dc.loc[res[2], 'name'] + "/" + dc.loc[res[2], 'state_code']
-		s += ', data_in=' + str(res[3]) + 'bytes'
-		return s
-		
-		
+		return max_results
+
+	
+	@staticmethod
+	def get_tx_stats_kb():
+		return DataAggregator.mobile_data/1024, DataAggregator.lan_data/1024, DataAggregator.wan_data/1024		
