@@ -12,8 +12,6 @@ log = logging.getLogger()
 
 
 class Comm:
-
-	
 	@staticmethod
 	def set_params(dc, sigma1, sigma2, bw_mobile, bw_wan, bw_lan):
 		Comm.dc = dc
@@ -105,18 +103,6 @@ class Query(object):
 		self.src_lng = src_lng
 		self.dest_id = dest_id
 
-	def query_to_str(self, dc, topo):
-		s = 'city=' + dc.loc[self.src_id, 'name'] + \
-			', (lat, lng)=('  + str(self.src_lat) + ', ' + str(self.src_lng) + '), ' + \
-			'dest=' + dc.loc[self.dest_id, 'name'] + \
-			', m=' + str(dc.loc[self.dest_id, 'm']) + \
-			', qps=' + str(QueryClient.queries_per_sec[self.dest_id]) + \
-			', total_resp time=' + str(self.total_resp_time * 1e3) + \
-			'ms (comm1=' + str(self.comm_req_time * 1e3) + \
-			', query=' + str(self.query_time * 1e3) + \
-			', comm2=' + str(self.comm_resp_time * 1e3) + ')'
-		return s
-
 
 	def estimate_resp_time(self, queries_per_sec):
 		self.comm_req_time = Comm.estimate_query_comm_time(self.src_lat, self.src_lng, self.dest_id, Query.query_req_bytes)
@@ -137,7 +123,37 @@ class Query(object):
 class Hierarchy:
 	levels = [['borough', 'cdp', 'city', 'municipality', 'other', 'town', 'township', 'village'], ['county'], ['state'], ['region']]
 	L = len(levels)
+
+
+class QueryResult(object):
+	def __init__(self, resp_time, comm_req_time, query_time, comm_resp_time,
+				 src_id, src_name, src_lat, src_lng,
+				 dest_id, dest_name, dest_type, dest_qps, dest_m):
+		self.resp_time = resp_time
+		self.comm_req_time = comm_req_time
+		self.query_time = query_time
+		self.comm_resp_time = comm_resp_time
+		self.src_id = src_id
+		self.src_name = src_name
+		self.src_lat = src_lat
+		self.src_lng = src_lng
+		self.dest_id = dest_id
+		self.dest_type = dest_type
+		self.dest_name = dest_name
+		self.dest_qps = dest_qps
+		self.dest_m = dest_m
 		
+
+	def __str__(self):
+		s = 'time(total:{:.3f}, comm_req:{:.3f}, query:{:.3f}, comm_resp:{:.3f}) ms, src(id:{}, name:{}, lat:{}, lng:{}), dest(id:{}, type:{}, name:{}, qps:{:.3f}, m:{})'.format(self.resp_time, self.comm_req_time, self.query_time, self.comm_resp_time, self.src_id, self.src_name, self.src_lat, self.src_lng, self.dest_id, self.dest_type, self.dest_name, self.dest_qps, self.dest_m)
+		return s
+
+
+	def to_csv(self):
+		s = '{:.3f}, {:.3f}, {:.3f}, {:.3f}, {}, {}, {}, {}, {}, {}, {:.3f}, {}'.format(self.resp_time, self.comm_req_time, self.query_time, self.comm_resp_time, self.src_id, self.src_name, self.src_lat, self.src_lng, self.dest_id, self.dest_name, self.dest_qps, self.dest_m)
+		return s
+		
+	
 
 class QueryClient(object):
 	queries = {}
@@ -205,11 +221,22 @@ class QueryClient(object):
 			QueryClient.queries_per_sec[key] = value / self.conf['test_duration_sec']
 
 
-	def estimate_query_resp_times(self):
+	def query(self):
 		# print('Estimating query resp time from {}...'.format(self.city['name']))
+		results = []
 		for query in self.queries:
 			query.estimate_resp_time(QueryClient.queries_per_sec[query.dest_id])
-		return self.queries
+			# save time in msec
+			result = QueryResult(query.total_resp_time*1000, query.comm_req_time*1000,
+								 query.query_time*1000, query.comm_resp_time*1000, 
+								 query.src_id, self.dc.loc[query.src_id, 'name'],
+								 query.src_lat, query.src_lng,
+								 query.dest_id, self.dc.loc[query.dest_id, 'name'],
+								 self.dc.loc[query.dest_id, 'type'],
+								 QueryClient.queries_per_sec[query.dest_id],
+								 self.dc.loc[query.dest_id, 'm'])
+			results.append(result)
+		return results
 			
 					 
 	def __init__(self, conf, dc, topo, city):
@@ -224,7 +251,7 @@ class QueryClient(object):
 		self.create_queries()
 
 
-class DataAggregationResult:
+class DataAggregationResult(object):
 	def __init__(self, level, aggr_time, exec_time, comm_time,
 				 dc1_id, dc1_name, dc1_data_in, dc1_m,
 				 dc2_id, dc2_name):
@@ -250,7 +277,7 @@ class DataAggregationResult:
 		return s
 
 		
-class DataAggregator:
+class DataAggregator(object):
 	mobile_data = 0.0
 	wan_data = 0.0
 	lan_data = 0.0

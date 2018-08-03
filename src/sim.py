@@ -85,66 +85,77 @@ def init(args):
 	return conf, dc, topo
 	
 
-def aggregate_data(verbose):
+def aggregate_data(conf):
+	print
+	print('### Aggregate Data ###')
+	
 	results = DataAggregator.aggregate()
 	tx_data_stats = DataAggregator.get_tx_stats_kb()	
 	total_aggr_time = '{:.3f}'.format(sum(result.aggr_time for result in results))
 
-	print
-	if verbose:
+	if conf['verbose']:
 		print("Total Aggregation Time: {} ms".format(total_aggr_time))	
 		for result in results:
 			print result
-		print("Tx Data (mobile/lan/wan) = {} Kbytes".format(tx_data_stats))	
+		print("Tx Data (mobile/LAN/WAN) = {} Kbytes".format(tx_data_stats))	
 	else:
 		l = [total_aggr_time]
 		l += [result.to_csv() for result in results]
-		l += ['{:.3f}, {:.3f}, {:.3f}'.format(tx_data_stats[0], tx_data_stats[1], tx_data_stats[2])
+		l += ['{:.3f}, {:.3f}, {:.3f}'.format(tx_data_stats[0], tx_data_stats[1], tx_data_stats[2])]
 		print('DataAggrResults: {}'.format(', '.join(l)))
 
+
+def query_data(conf):
+	print
+	print('### Query Data ###')
+	
+	city_ids = dc.loc[dc.type.isin(Hierarchy.levels[0])].index
+	query_clients = []
+	prev_state = None
+	for city_id in city_ids:
+		if dc.loc[city_id].state_code != prev_state:
+			print('Creating query clients for {}...'.format(dc.loc[city_id].state_code))
+			prev_state = dc.loc[city_id].state_code
+		query_clients.append(QueryClient(conf, dc, topo, dc.loc[city_id]))	
+
+	query_results = []
+	prev_state = None
+	for query_client in query_clients:
+		if dc.loc[query_client.city.name].state_code != prev_state:
+			print('Estimating query resp time for {}...'.format(dc.loc[query_client.city.name].state_code))
+			prev_state = dc.loc[query_client.city.name].state_code
+		query_results += query_client.query()
+
+	max_query = max(query_results, key=lambda q: q.resp_time)
+	min_query = min(query_results, key=lambda q: q.resp_time)
+	resp_times = [q.resp_time * 1000 for q in query_results]
+	avg_time = '{:.3f}'.format(np.mean(resp_times))
+	
+	if conf['verbose']:
+		print("Response Time:")
+		print("Max: {}".format(max_query))
+		print("Min: {}".format(min_query))
+		print("Avg: {:.3f} ms".format(avg_time))
+		# CDF
+		num_bins = 40
+		counts, bin_edges = np.histogram(resp_times, bins=num_bins, normed=True)
+		cdf = np.cumsum(counts)
+		plt.plot (bin_edges[1:], cdf/cdf[-1])
+		print bin_edges[1:]
+		print cdf/cdf[-1]
+		plt.show()
+	else:
+		l = [max_query.to_csv(), min_query.to_csv(), avg_time]
+		print('QueryResults: {}'.format(', '.join(l)))
+		
 
 def main(args):
 	global dc, topo, resp_times
 	conf, dc, topo = init(args)
 	log.info('Configs: {}'.format(conf))
-
-	aggregate_data(conf['verbose'])
+	aggregate_data(conf)
+	query_data(conf)
 	
-	# ### 2. Query response
-	# city_ids = dc.loc[dc.type.isin(Hierarchy.levels[0])].index
-	# query_clients = []
-	# prev_state = None
-	# for city_id in city_ids:
-	# 	if dc.loc[city_id].state_code != prev_state:
-	# 		print('Creating query clients for {}...'.format(dc.loc[city_id].state_code))
-	# 		prev_state = dc.loc[city_id].state_code
-	# 	query_clients.append(QueryClient(conf, dc, topo, dc.loc[city_id]))	
-
-	# query_results = []
-	# prev_state = None
-	# for query_client in query_clients:
-	# 	if dc.loc[query_client.city.name].state_code != prev_state:
-	# 		print('Estimating query resp time for {}...'.format(dc.loc[query_client.city.name].state_code))
-	# 		prev_state = dc.loc[query_client.city.name].state_code
-	# 	query_results += query_client.estimate_query_resp_times()
-	# # Display results
-	# print
-	# print("Response Time:")
-	# max_query = max(query_results, key=lambda q: q.total_resp_time)
-	# min_query = min(query_results, key=lambda q: q.total_resp_time)
-	# print("Max: {}".format(max_query.query_to_str(dc, topo)))
-	# print("Min: {}".format(min_query.query_to_str(dc, topo)))
-	# resp_times_ms = [q.total_resp_time * 1000 for q in query_results]	
-	# print("Avg: {}ms".format(np.mean(resp_times_ms)))
-	# # CDF
-	# num_bins = 40
-	# counts, bin_edges = np.histogram(resp_times_ms, bins=num_bins, normed=True)
-	# cdf = np.cumsum(counts)
-	# plt.plot (bin_edges[1:], cdf/cdf[-1])
-	# print bin_edges[1:]
-	# print cdf/cdf[-1]
-	# plt.show()		  
-		
 	
 if __name__ == '__main__':
 	args = parse_args()
