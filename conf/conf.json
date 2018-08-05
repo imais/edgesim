@@ -1,4 +1,5 @@
 {
+    "city_aliases": ["borough", "cdp", "city", "municipality", "other", "town", "township", "village"],
     "ratio_of_adults": 0.774,    
     "ratio_of_adult_smartphone_owners": 0.77,
     "queries_per_smartphone_per_hour": 1.0,
@@ -14,5 +15,14 @@
     "gammas": [0.0, 1.0e6],
     "thetas": [0.0, 1024],
     "lambda": 0.1,
-    "query_dist": [0.56, 0.14, 0.12, 0.03, 0.08, 0.02, 0.05]
+    "query_dist": [0.56, 0.14, 0.12, 0.03, 0.08, 0.02, 0.05],
+    "machine": {
+        "alloc_policy": "population",
+        "fixed": {
+            "num_machines": [2, 4, 8, 16]
+        },
+        "population": {
+            "population_per_machine": 100000
+        }
+    }
 }

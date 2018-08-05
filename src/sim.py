@@ -7,7 +7,9 @@ import numpy as np
 import pandas as pd
 import os
 import sys
-from clients import Comm, Exec, Query, QueryClient, DataAggregator, DataAggregationResult, Hierarchy
+from data_aggregator import DataAggregator, DataAggregationResult
+from query import Query, QueryClient
+from models import Comm, Exec
 
 log = logging.getLogger()
 logging.basicConfig(level=logging.INFO)
@@ -39,32 +41,52 @@ def init_conf(args):
 	return conf
 
 
-def load_data(mapping, test=False):
-	dc_file = DC_FILE_TEST if test else DC_FILE_PROD
+def load_data(conf):
+	# load dc data
+	dc_file = DC_FILE_TEST if conf['test'] else DC_FILE_PROD
 	dc = pd.read_csv(dc_file, header=0, index_col=0, sep='\t')
+	
+	if conf['machine']['alloc_policy'] == 'population':
+		# m = max(2, population/population_per_machine) for each city		
+		dc['m'] = ''
+		dc['m'] = dc.loc[dc.type.isin(conf['city_aliases'])].apply(lambda x: max(2, int(x['population'] / conf['machine']['population']['population_per_machine'])), axis=1)
+		county_ids = dc.loc[dc.type == 'county'].index
+		for county_id in county_ids:
+			dc.loc[county_id, 'm'] = sum(dc.loc[dc.parent_id == county_id, 'm'])
+		state_ids = dc.loc[dc.type == 'state'].index
+		for state_id in state_ids:
+			dc.loc[state_id, 'm'] = sum(dc.loc[dc.parent_id == state_id, 'm'])
+		region_ids = dc.loc[dc.type == 'region'].index			
+		for region_id in region_ids:
+			dc.loc[region_id, 'm'] = sum(dc.loc[dc.parent_id == region_id, 'm'])
+		
+	elif conf['machine']['alloc_policy'] == 'fixed':
+		raise NotImplementedError('fixed allocation policy not implementd')
+
+	# configure topo based on mapping policy
 	topo = pd.DataFrame(columns=['type', 'name', 'parent_id', 'dc_id', 'data_in'])
 	topo.type = dc.type
 	topo.name = dc.name
 	topo.parent_id = dc.parent_id
 	topo.data_in = 0.0
-	if mapping == 'a':
+	if conf['mapping'] == 'a':
 		# Use all level DCs
 		topo.dc_id = dc.index
-	elif mapping == 'b':
+	elif conf['mapping'] == 'b':
 		# Use state and region DCs
 		prev_state = None
 		for i, row in topo.iterrows():
 			if dc.loc[i].state_code != prev_state:
 				print('Loading data for {}...'.format(dc.loc[i].state_code))
 				prev_state = dc.loc[i].state_code
-			if row.type in Hierarchy.levels[0]: # city, town, village, ...
+			if row.type in conf['city_aliases']: # city, town, village, ...
 				topo['dc_id'][i] = dc.loc[dc.loc[i].parent_id].parent_id
-			elif row.type in Hierarchy.levels[1]:
+			elif row.type == 'county':
 				topo['dc_id'][i] = dc.loc[i].parent_id
 			else:
 				# state or region
 				topo['dc_id'][i] = i
-	elif mapping == 'c':
+	elif conf['mapping'] == 'c':
 		# Use region DCs only: there must be only one region DC
 		topo.dc_id = dc.loc[dc.type == 'region'].index.values[0]
 	return dc, topo
@@ -72,7 +94,7 @@ def load_data(mapping, test=False):
 
 def init(args):
 	conf = init_conf(args)
-	dc, topo = load_data(conf['mapping'], conf['test'])
+	dc, topo = load_data(conf)
 
 	Comm.set_params(dc, conf['sigmas'][0], conf['sigmas'][1], 
 					conf['omegas'][0], conf['omegas'][1], conf['omegas'][2]);
@@ -88,8 +110,9 @@ def init(args):
 def aggregate_data(conf):
 	print
 	print('### Aggregate Data ###')
-	
-	results = DataAggregator.aggregate()
+
+	levels = [conf['city_aliases'], ['county'], ['state'], ['region']]
+	results = DataAggregator.aggregate(levels)
 	tx_data_stats = DataAggregator.get_tx_stats_kb()	
 	total_aggr_time = '{:.3f}'.format(sum(result.aggr_time for result in results))
 
@@ -109,7 +132,7 @@ def query_data(conf):
 	print
 	print('### Query Data ###')
 	
-	city_ids = dc.loc[dc.type.isin(Hierarchy.levels[0])].index
+	city_ids = dc.loc[dc.type.isin(conf['city_aliases'])].index
 	query_clients = []
 	prev_state = None
 	for city_id in city_ids:
@@ -128,14 +151,14 @@ def query_data(conf):
 
 	max_query = max(query_results, key=lambda q: q.resp_time)
 	min_query = min(query_results, key=lambda q: q.resp_time)
-	resp_times = [q.resp_time * 1000 for q in query_results]
+	resp_times = [q.resp_time for q in query_results]
 	avg_time = '{:.3f}'.format(np.mean(resp_times))
 	
 	if conf['verbose']:
 		print("Response Time:")
 		print("Max: {}".format(max_query))
 		print("Min: {}".format(min_query))
-		print("Avg: {:.3f} ms".format(avg_time))
+		print("Avg: {} ms".format(avg_time))
 		# CDF
 		num_bins = 40
 		counts, bin_edges = np.histogram(resp_times, bins=num_bins, normed=True)
