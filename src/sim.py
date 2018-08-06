@@ -29,7 +29,7 @@ def parse_args():
 	parser.add_argument('-q', '--query', action='store_true')
 	parser.add_argument('-a', '--alpha_', type=float)
 	parser.add_argument('-s', '--sensors_per_person_', type=float)
-	parser.add_argument('-l', '--lambda_', type=float)		
+	parser.add_argument('-l', '--lambda_ms_', type=float)		
 
 	args = parser.parse_args()
 	
@@ -49,9 +49,9 @@ def init_conf(args):
 			if conf['sensors_per_person_'] is not None:
 				conf['sensors_per_person'] = conf['sensors_per_person_']
 			del conf['sensors_per_person_']
-			if conf['lambda_'] is not None:
-				conf['lambda'] = conf['lambda_']
-			del conf['lambda_']
+			if conf['lambda_ms_'] is not None:
+				conf['lambda_ms'] = conf['lambda_ms_']
+			del conf['lambda_ms_']
 	else:
 		conf = args
 	return conf
@@ -138,7 +138,7 @@ def init(args):
 					conf['omegas'][0], conf['omegas'][1], conf['omegas'][2]);
 	Exec.set_params(dc, conf['betas'][0], conf['betas'][1], 
 					conf['gammas'][0], conf['gammas'][1],
-					conf['thetas'][0], conf['thetas'][1], conf['lambda']/1000)
+					conf['thetas'][0], conf['thetas'][1], conf['lambda_ms']/1000)
 	Query.set_params(conf['query_req_bytes'], conf['query_resp_bytes'])
 	DataAggregator.set_params(conf, dc, topo)
 
@@ -196,7 +196,7 @@ def query_data(conf):
 	
 	if conf['verbose']:
 		print('Response Time:')
-		print('lambda={} ms'.format(conf['lambda']))
+		print('lambda={} ms'.format(conf['lambda_ms']))
 		print('Max: {}'.format(max_query))
 		print('Min: {}'.format(min_query))
 		print('Avg: {} ms'.format(avg_time))
