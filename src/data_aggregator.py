@@ -21,7 +21,7 @@ class DataAggregationResult(object):
 
 
 	def __str__(self):
-		s = 'L{}: time(total:{:.3f}, exec:{:.3f}, comm:{:.3f}) ms, dc1(id:{}, name:{}, data_in:{:.3f} bytes, m:{}), dc2(id:{}, name:{})'.format(self.level, self.aggr_time, self.exec_time, self.comm_time, self.dc1_id, self.dc1_name, self.dc1_data_in, self.dc1_m, self.dc2_id, self.dc2_name)
+		s = 'L{}: time(total:{:.3f}, exec:{:.3f}, comm:{:.3f}) s, dc1(id:{}, name:{}, data_in:{:.3f} bytes, m:{}), dc2(id:{}, name:{})'.format(self.level, self.aggr_time, self.exec_time, self.comm_time, self.dc1_id, self.dc1_name, self.dc1_data_in, self.dc1_m, self.dc2_id, self.dc2_name)
 		return s
 
 	
@@ -49,40 +49,39 @@ class DataAggregator(object):
 		conf = DataAggregator.conf
 		dc = DataAggregator.dc
 		topo = DataAggregator.topo
-		data_out = conf['bytes_reduce_out']
 
 		max_results = []
 		for l in range(L):
 			results = []
 			entities = topo.loc[topo.type.isin(levels[str(l)])]
 			for index, entity in entities.iterrows():
-				if l == 0:
-					topo.loc[index, 'data_in'] = dc.loc[index].population * conf['sensors_per_person'] * conf['bytes_per_sensor_per_time_window']
-					
-				dc1_id = entity.dc_id					
+				dc1_id = entity.dc_id
+				data_in = entity.data_in
 				if l < L - 1:
+					data_out = entity['data_in'] * conf['alpha'][l]
 					topo.loc[entity.parent_id, 'data_in'] += data_out
 					dc2_id = topo.loc[entity.parent_id].dc_id
-					exec_time = Exec.estimate_map_reduce_time(dc1_id, topo.loc[index, 'data_in'])
+					exec_time = Exec.estimate_map_reduce_time(dc1_id, data_in)
 					comm_time = Comm.estimate_dc_comm_time(dc1_id, dc2_id, data_out)
 					aggr_time = exec_time + comm_time
 					if l == 0:
-						DataAggregator.mobile_data += topo.loc[index, 'data_in']
+						DataAggregator.mobile_data += data_in
 					elif dc1_id == dc2_id:
-						DataAggregator.lan_data += topo.loc[index, 'data_in']
+						DataAggregator.lan_data += data_in
 					else:
-						DataAggregator.wan_data += topo.loc[index, 'data_in']				
+						DataAggregator.wan_data += data_in
 				else:
+					# region DC
 					dc2_id = None
-					exec_time = Exec.estimate_map_reduce_time(dc1_id, topo.loc[index, 'data_in'])
+					exec_time = Exec.estimate_map_reduce_time(dc1_id, data_in)
 					comm_time = 0.0
 					aggr_time = exec_time
 
 				# save time results in msec
-				result = DataAggregationResult(l, aggr_time*1000, exec_time*1000,
-											   comm_time*1000 if comm_time is not None else None,
+				result = DataAggregationResult(l, aggr_time, exec_time,
+											   comm_time if comm_time is not None else None,
 											   dc1_id, dc.loc[dc1_id, 'name'],
-											   topo.loc[index, 'data_in'], dc.loc[dc1_id, 'm'], 
+											   data_in, dc.loc[dc1_id, 'm'], 
 											   dc2_id,
 											   dc.loc[dc2_id, 'name'] if dc2_id is not None else None)
 				results.append(result)

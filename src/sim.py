@@ -83,6 +83,11 @@ def load_topo(conf, dc):
 	topo.name = dc.name
 	topo.parent_id = dc.parent_id
 	topo.data_in = 0.0
+
+	# data_in
+	city_ids = topo.loc[topo.type.isin(conf['levels'][str(0)])].index
+	topo.loc[city_ids, 'data_in'] = topo.loc[city_ids].apply(lambda x: dc.loc[x.name, 'population'] * conf['sensors_per_person'] * conf['bytes_per_sensor_per_time_window'], axis=1)
+	
 	if conf['mapping'] == 'a':
 		# Use all level DCs
 		topo.dc_id = dc.index
@@ -93,9 +98,10 @@ def load_topo(conf, dc):
 			if dc.loc[i].state_code != prev_state:
 				print('Loading data for {}...'.format(dc.loc[i].state_code))
 				prev_state = dc.loc[i].state_code
-			if row.type in conf['city_aliases']: # city, town, village, ...
+				
+			if row.type in conf['levels'][str(0)]: # city, town, village, ...
 				topo['dc_id'][i] = dc.loc[dc.loc[i].parent_id].parent_id
-			elif row.type == 'county':
+			elif row.type in conf['levels'][str(1)]: # county
 				topo['dc_id'][i] = dc.loc[i].parent_id
 			else:
 				# state or region
@@ -132,12 +138,15 @@ def aggregate_data(conf):
 	total_aggr_time = '{:.3f}'.format(sum(result.aggr_time for result in results))
 
 	if conf['verbose']:
-		print("Total Aggregation Time: {} ms".format(total_aggr_time))	
+		print('Total Aggregation Time: {} s'.format(total_aggr_time))
+		print('alpha={}, sensors_per_person={}'\
+			  .format(conf['alpha'][0], conf['sensors_per_person']))
 		for result in results:
 			print result
 		print("Tx Data (mobile/LAN/WAN) = {} Kbytes".format(tx_data_stats))	
 	else:
 		l = [total_aggr_time]
+		l += ['{}, {}'.format(conf['alpha'][0], conf['sensors_per_person'])]
 		l += [result.to_csv() for result in results]
 		l += ['{:.3f}, {:.3f}, {:.3f}'.format(tx_data_stats[0], tx_data_stats[1], tx_data_stats[2])]
 		print('DataAggrResults: {}'.format(', '.join(l)))
@@ -192,7 +201,7 @@ def main(args):
 	conf, dc, topo = init(args)
 	log.info('Configs: {}'.format(conf))
 	aggregate_data(conf)
-	query_data(conf)
+	# query_data(conf)
 	
 	
 if __name__ == '__main__':
