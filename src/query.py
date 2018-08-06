@@ -42,15 +42,15 @@ class Query(object):
 
 
 	def estimate_resp_time(self, queries_per_sec):
-		self.comm_req_time = Comm.estimate_query_comm_time(self.src_lat, self.src_lng, self.dest_id, Query.query_req_bytes)
+		self.comm_req_time, _ = Comm.estimate_query_comm_time(self.src_lat, self.src_lng, self.dest_id, Query.query_req_bytes)
 		if math.isnan(self.comm_req_time):
 			raise ValueError('self.comm_req_time is nan')
 		
 		self.query_time = Exec.estimate_query_time(self.dest_id, queries_per_sec)
 		if math.isnan(self.query_time):
-			raise ValueError('self.query_time is nan')
+			raise ValueError('self.quepry_time is nan')
 		
-		self.comm_resp_time = Comm.estimate_query_comm_time(self.src_lat, self.src_lng, self.dest_id, Query.query_resp_bytes)
+		self.comm_resp_time, self.dist_mi = Comm.estimate_query_comm_time(self.src_lat, self.src_lng, self.dest_id, Query.query_resp_bytes)
 		if math.isnan(self.comm_resp_time):
 			raise ValueError('self.query_time): is nan')		
 
@@ -58,13 +58,14 @@ class Query(object):
 
 
 class QueryResult(object):
-	def __init__(self, resp_time, comm_req_time, query_time, comm_resp_time,
-				 src_id, src_name, src_lat, src_lng,
+	def __init__(self, resp_time, comm_req_time, query_time, comm_resp_time, dist_mi,
+				 src_id, src_name, src_lat, src_lng, 
 				 dest_id, dest_name, dest_type, dest_qps, dest_m):
 		self.resp_time = resp_time
 		self.comm_req_time = comm_req_time
 		self.query_time = query_time
 		self.comm_resp_time = comm_resp_time
+		self.dist_mi = dist_mi
 		self.src_id = src_id
 		self.src_name = src_name
 		self.src_lat = src_lat
@@ -77,12 +78,12 @@ class QueryResult(object):
 		
 
 	def __str__(self):
-		s = 'time(total:{:.3f}, comm_req:{:.3f}, query:{:.3f}, comm_resp:{:.3f}) ms, src(id:{}, name:{}, lat:{}, lng:{}), dest(id:{}, type:{}, name:{}, qps:{:.3f}, m:{})'.format(self.resp_time, self.comm_req_time, self.query_time, self.comm_resp_time, self.src_id, self.src_name, self.src_lat, self.src_lng, self.dest_id, self.dest_type, self.dest_name, self.dest_qps, self.dest_m)
+		s = 'time(total:{:.3f}, comm_req:{:.3f}, query:{:.3f}, comm_resp:{:.3f}) ms, {:.3f} mi, src(id:{}, name:{}, lat:{}, lng:{}), dest(id:{}, type:{}, name:{}, qps:{:.3f}, m:{})'.format(self.resp_time, self.comm_req_time, self.query_time, self.comm_resp_time, self.dist_mi, self.src_id, self.src_name, self.src_lat, self.src_lng, self.dest_id, self.dest_type, self.dest_name, self.dest_qps, self.dest_m)
 		return s
 
 
 	def to_csv(self):
-		s = '{:.3f}, {:.3f}, {:.3f}, {:.3f}, {}, {}, {}, {}, {}, {}, {:.3f}, {}'.format(self.resp_time, self.comm_req_time, self.query_time, self.comm_resp_time, self.src_id, self.src_name, self.src_lat, self.src_lng, self.dest_id, self.dest_name, self.dest_qps, self.dest_m)
+		s = '{:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {}, {}, {}, {}, {}, {}, {:.3f}, {}'.format(self.resp_time, self.comm_req_time, self.query_time, self.comm_resp_time, self.dist_mi, self.src_id, self.src_name, self.src_lat, self.src_lng, self.dest_id, self.dest_name, self.dest_qps, self.dest_m)
 		return s
 		
 	
@@ -93,18 +94,18 @@ class QueryClient(object):
 	SQ_METER_TO_SQ_MI = 1.0 / (1e6 * (LatLngUtil.KM_PER_MILE**2))
 	
 
-	def create_queries(self, city_aliases):
+	def create_queries(self, levels):
 		self.queries = []
 
-		city_others_ids = self.dc.loc[self.dc.type.isin(city_aliases) & \
+		city_others_ids = self.dc.loc[self.dc.type.isin(levels['0']) & \
 									  (self.dc.parent_id == self.city.parent_id) & \
 									  (self.dc.index != self.city.name)].index
 		county = self.dc.loc[self.city.parent_id]
-		county_others_ids = self.dc.loc[(self.dc.type == 'county') & \
+		county_others_ids = self.dc.loc[self.dc.type.isin(levels['1']) & \
 										(self.dc.parent_id == county.parent_id) & \
 										(self.dc.index != county.name)].index
 		state =  self.dc.loc[county.parent_id]
-		state_others_ids = self.dc.loc[(self.dc.type == 'state') & \
+		state_others_ids = self.dc.loc[self.dc.type.isin(levels['2']) & \
 									   (self.dc.parent_id == state.parent_id) & \
 									   (self.dc.index != state.name)].index
 
@@ -159,7 +160,8 @@ class QueryClient(object):
 			query.estimate_resp_time(QueryClient.queries_per_sec[query.dest_id])
 			# save time in msec
 			result = QueryResult(query.total_resp_time*1000, query.comm_req_time*1000,
-								 query.query_time*1000, query.comm_resp_time*1000, 
+								 query.query_time*1000, query.comm_resp_time*1000,
+								 query.dist_mi,
 								 query.src_id, self.dc.loc[query.src_id, 'name'],
 								 query.src_lat, query.src_lng,
 								 query.dest_id, self.dc.loc[query.dest_id, 'name'],
@@ -179,4 +181,4 @@ class QueryClient(object):
 		self.queries_per_min = int(city.population * self.conf['ratio_of_adults'] * \
 									   self.conf['ratio_of_adult_smartphone_owners'] * \
 									   self.conf['queries_per_smartphone_per_hour'] / 60)
-		self.create_queries(self.conf['city_aliases'])
+		self.create_queries(self.conf['levels'])

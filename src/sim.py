@@ -41,28 +41,42 @@ def init_conf(args):
 	return conf
 
 
-def load_data(conf):
+def load_dc(conf):
 	# load dc data
 	dc_file = DC_FILE_TEST if conf['test'] else DC_FILE_PROD
 	dc = pd.read_csv(dc_file, header=0, index_col=0, sep='\t')
-	
+
+	dc['m'] = ''	
 	if conf['machine']['alloc_policy'] == 'population':
-		# m = max(2, population/population_per_machine) for each city		
-		dc['m'] = ''
-		dc['m'] = dc.loc[dc.type.isin(conf['city_aliases'])].apply(lambda x: max(2, int(x['population'] / conf['machine']['population']['population_per_machine'])), axis=1)
-		county_ids = dc.loc[dc.type == 'county'].index
-		for county_id in county_ids:
-			dc.loc[county_id, 'm'] = sum(dc.loc[dc.parent_id == county_id, 'm'])
-		state_ids = dc.loc[dc.type == 'state'].index
-		for state_id in state_ids:
-			dc.loc[state_id, 'm'] = sum(dc.loc[dc.parent_id == state_id, 'm'])
-		region_ids = dc.loc[dc.type == 'region'].index			
-		for region_id in region_ids:
-			dc.loc[region_id, 'm'] = sum(dc.loc[dc.parent_id == region_id, 'm'])
-		
+		L = len(conf['levels'])
+		divisor = 1
+		population_per_machine = conf['machine']['population']['population_per_machine']
+		for l in range(L):
+			target_ids = dc.loc[dc.type.isin(conf['levels'][str(l)])].index
+			# avg_m = conf['machine']['population']['avg_machines'][l]
+			# min_m = conf['machine']['population']['min_machines'][l]
+			# total_m = avg_m * len(target_ids)			
+			# total_population = sum(dc.loc[target_ids, 'population'])
+			# dc['m'] = dc.loc[target_ids].\
+			# 		  apply(lambda x: \
+			# 				max(min_m, \
+			# 					int(total_m * x['population'] / total_population)),
+			# 				axis = 1)
+			min_m = conf['machine']['population']['min_machines'][l]
+			dc.loc[target_ids, 'm'] = dc.loc[target_ids].apply(lambda x: max(min_m, int(x['population'] / population_per_machine / divisor)), axis = 1)
+			divisor *= 2
+			# machines:
+			#   cities   = {mean: 2.01, max: 26, min: 2},
+			#   counties = {mean: 4.17, max: 13, min: 4},
+			#   states   = {mean: 17.78, [8, 17, 8, 8, 22, 49, 32, 8, 8]},
+			#   region   = 70
 	elif conf['machine']['alloc_policy'] == 'fixed':
 		raise NotImplementedError('fixed allocation policy not implementd')
 
+	return dc
+
+
+def load_topo(conf, dc):
 	# configure topo based on mapping policy
 	topo = pd.DataFrame(columns=['type', 'name', 'parent_id', 'dc_id', 'data_in'])
 	topo.type = dc.type
@@ -89,12 +103,14 @@ def load_data(conf):
 	elif conf['mapping'] == 'c':
 		# Use region DCs only: there must be only one region DC
 		topo.dc_id = dc.loc[dc.type == 'region'].index.values[0]
-	return dc, topo
+
+	return topo
 
 
 def init(args):
 	conf = init_conf(args)
-	dc, topo = load_data(conf)
+	dc = load_dc(conf)
+	topo = load_topo(conf, dc)
 
 	Comm.set_params(dc, conf['sigmas'][0], conf['sigmas'][1], 
 					conf['omegas'][0], conf['omegas'][1], conf['omegas'][2]);
@@ -111,8 +127,7 @@ def aggregate_data(conf):
 	print
 	print('### Aggregate Data ###')
 
-	levels = [conf['city_aliases'], ['county'], ['state'], ['region']]
-	results = DataAggregator.aggregate(levels)
+	results = DataAggregator.aggregate(conf['levels'])
 	tx_data_stats = DataAggregator.get_tx_stats_kb()	
 	total_aggr_time = '{:.3f}'.format(sum(result.aggr_time for result in results))
 
@@ -132,7 +147,7 @@ def query_data(conf):
 	print
 	print('### Query Data ###')
 	
-	city_ids = dc.loc[dc.type.isin(conf['city_aliases'])].index
+	city_ids = dc.loc[dc.type.isin(conf['levels']['0'])].index
 	query_clients = []
 	prev_state = None
 	for city_id in city_ids:

@@ -54,7 +54,7 @@ class DataAggregator(object):
 		max_results = []
 		for l in range(L):
 			results = []
-			entities = topo.loc[topo.type.isin(levels[l])]
+			entities = topo.loc[topo.type.isin(levels[str(l)])]
 			for index, entity in entities.iterrows():
 				if l == 0:
 					topo.loc[index, 'data_in'] = dc.loc[index].population * conf['sensors_per_person'] * conf['bytes_per_sensor_per_time_window']

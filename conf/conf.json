@@ -1,9 +1,14 @@
 {
-    "city_aliases": ["borough", "cdp", "city", "municipality", "other", "town", "township", "village"],
+    "levels": {
+        "0": ["borough", "cdp", "city", "municipality", "other", "town", "township", "village"],
+        "1": ["county"],
+        "2": ["state"],
+        "3": ["region"]
+    },
     "ratio_of_adults": 0.774,    
     "ratio_of_adult_smartphone_owners": 0.77,
     "queries_per_smartphone_per_hour": 1.0,
-    "test_duration_sec": 30.0,
+    "test_duration_sec": 10.0,
     "sensors_per_person": 0.0001073,
     "bytes_per_sensor_per_time_window": 128,
     "bytes_reduce_out": 32,
@@ -16,13 +21,16 @@
     "thetas": [0.0, 1024],
     "lambda": 0.1,
     "query_dist": [0.56, 0.14, 0.12, 0.03, 0.08, 0.02, 0.05],
+    "test": [["a", "b"], ["c"]],
     "machine": {
         "alloc_policy": "population",
         "fixed": {
-            "num_machines": [2, 4, 8, 16]
+            "num_machines": [16, 32, 64, 128]
         },
         "population": {
-            "population_per_machine": 100000
+            "avg_machines": [4, 8, 32, 64],
+            "population_per_machine": 100000,
+            "min_machines": [2, 4, 8, 16]
         }
     }
 }

@@ -34,7 +34,7 @@ class Comm:
 		dist_mi = LatLngUtil.compute_dist_mi(client_lat, client_lng,
 											 dc.lat, dc.lng)
 		time = Comm.sigma1 + Comm.sigma2 * dist_mi + data / Comm.bw_mobile
-		return time
+		return time, dist_mi
 
 
 class Exec:
