@@ -58,7 +58,7 @@ class DataAggregator(object):
 				dc1_id = entity.dc_id
 				data_in = entity.data_in
 				if l < L - 1:
-					data_out = entity['data_in'] * conf['alpha'][l]
+					data_out = entity['data_in'] * conf['alpha'] if l == 0 else 1.0
 					topo.loc[entity.parent_id, 'data_in'] += data_out
 					dc2_id = topo.loc[entity.parent_id].dc_id
 					exec_time = Exec.estimate_map_reduce_time(dc1_id, data_in)

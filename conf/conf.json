@@ -11,7 +11,7 @@
     "test_duration_sec": 10.0,
     "sensors_per_person": 1.0,
     "bytes_per_sensor_per_time_window": 128,
-    "alpha": [0.2, 1.0, 1.0, 1.0],
+    "alpha": 0.2,
     "query_req_bytes": 128,
     "query_resp_bytes": 2048,
     "sigmas": [4.852e-3, 0.022e-3],

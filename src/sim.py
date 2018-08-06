@@ -24,7 +24,12 @@ def parse_args():
 	parser.add_argument('-c', '--conf', default='./conf/conf.json', type=str)
 	parser.add_argument('-m', '--mapping', default='a', choices=['a', 'b', 'c'], type=str)
 	parser.add_argument('-v', '--verbose', action='store_true')
-	parser.add_argument('-t', '--test', action='store_true')	
+	parser.add_argument('-t', '--test', action='store_true')
+	parser.add_argument('-d', '--data_aggregation', action='store_true')
+	parser.add_argument('-q', '--query', action='store_true')
+	parser.add_argument('-a', '--alpha_', type=float)
+	parser.add_argument('-s', '--sensors_per_person_', type=float)
+	parser.add_argument('-l', '--lambda_', type=float)		
 
 	args = parser.parse_args()
 	
@@ -36,6 +41,17 @@ def init_conf(args):
 		with open(args.conf, 'rt') as f:
 			# args have priority over settings in conf
 			conf = dict(json.load(f).items() + vars(args).items())
+
+			# overwrite entries in conf with arguments
+			if conf['alpha_'] is not None:
+				conf['alpha'] = conf['alpha_']
+			del conf['alpha_']
+			if conf['sensors_per_person_'] is not None:
+				conf['sensors_per_person'] = conf['sensors_per_person_']
+			del conf['sensors_per_person_']
+			if conf['lambda_'] is not None:
+				conf['lambda'] = conf['lambda_']
+			del conf['lambda_']
 	else:
 		conf = args
 	return conf
@@ -122,7 +138,7 @@ def init(args):
 					conf['omegas'][0], conf['omegas'][1], conf['omegas'][2]);
 	Exec.set_params(dc, conf['betas'][0], conf['betas'][1], 
 					conf['gammas'][0], conf['gammas'][1],
-					conf['thetas'][0], conf['thetas'][1], conf['lambda'])
+					conf['thetas'][0], conf['thetas'][1], conf['lambda']/1000)
 	Query.set_params(conf['query_req_bytes'], conf['query_resp_bytes'])
 	DataAggregator.set_params(conf, dc, topo)
 
@@ -146,7 +162,7 @@ def aggregate_data(conf):
 		print("Tx Data (mobile/LAN/WAN) = {} Kbytes".format(tx_data_stats))	
 	else:
 		l = [total_aggr_time]
-		l += ['{}, {}'.format(conf['alpha'][0], conf['sensors_per_person'])]
+		l += ['{}, {}'.format(conf['alpha'], conf['sensors_per_person'])]
 		l += [result.to_csv() for result in results]
 		l += ['{:.3f}, {:.3f}, {:.3f}'.format(tx_data_stats[0], tx_data_stats[1], tx_data_stats[2])]
 		print('DataAggrResults: {}'.format(', '.join(l)))
@@ -179,10 +195,11 @@ def query_data(conf):
 	avg_time = '{:.3f}'.format(np.mean(resp_times))
 	
 	if conf['verbose']:
-		print("Response Time:")
-		print("Max: {}".format(max_query))
-		print("Min: {}".format(min_query))
-		print("Avg: {} ms".format(avg_time))
+		print('Response Time:')
+		print('lambda={} ms'.format(conf['lambda']))
+		print('Max: {}'.format(max_query))
+		print('Min: {}'.format(min_query))
+		print('Avg: {} ms'.format(avg_time))
 		# CDF
 		num_bins = 40
 		counts, bin_edges = np.histogram(resp_times, bins=num_bins, normed=True)
@@ -192,7 +209,8 @@ def query_data(conf):
 		print cdf/cdf[-1]
 		plt.show()
 	else:
-		l = [max_query.to_csv(), min_query.to_csv(), avg_time]
+		l = ['{}'.format(conf['lambda'])]
+		l += [max_query.to_csv(), min_query.to_csv(), avg_time]
 		print('QueryResults: {}'.format(', '.join(l)))
 		
 
@@ -200,9 +218,14 @@ def main(args):
 	global dc, topo, resp_times
 	conf, dc, topo = init(args)
 	log.info('Configs: {}'.format(conf))
-	aggregate_data(conf)
-	# query_data(conf)
-	
+	if not conf['data_aggregation'] and not conf['query']:
+		# default: run both
+		aggregate_data(conf)
+		query_data(conf)
+	if conf['data_aggregation']:
+		aggregate_data(conf)
+	if conf['query']:
+		query_data(conf)		
 	
 if __name__ == '__main__':
 	args = parse_args()
