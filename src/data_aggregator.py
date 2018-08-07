@@ -26,7 +26,7 @@ class DataAggregationResult(object):
 
 	
 	def to_csv(self):
-		s = '{}, {:.3f}, {:.3f}, {:.3f}, {}, {}, {:.3f} {}, {}, {}'.format(self.level, self.aggr_time, self.exec_time, self.comm_time, self.dc1_id, self.dc1_name, self.dc1_data_in, self.dc1_m, self.dc2_id, self.dc2_name)
+		s = '{}, {:.3f}, {:.3f}, {:.3f}, {}, {}, {:.3f}, {}, {}, {}'.format(self.level, self.aggr_time, self.exec_time, self.comm_time, self.dc1_id, self.dc1_name, self.dc1_data_in, self.dc1_m, self.dc2_id, self.dc2_name)
 		return s
 
 		
@@ -58,7 +58,7 @@ class DataAggregator(object):
 				dc1_id = entity.dc_id
 				data_in = entity.data_in
 				if l < L - 1:
-					data_out = entity['data_in'] * conf['alpha'] if l == 0 else 1.0
+					data_out = entity['data_in'] * (conf['alpha'] if l == 0 else 1.0)
 					topo.loc[entity.parent_id, 'data_in'] += data_out
 					dc2_id = topo.loc[entity.parent_id].dc_id
 					exec_time = Exec.estimate_map_reduce_time(dc1_id, data_in)
