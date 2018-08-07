@@ -1,0 +1,32 @@
+#!/bin/bash
+
+NUM_TESTS=1
+
+alphas=(0.2 0.4 0.6 0.8 1.0 1.2)
+# alphas=(0.2)
+sensors_per_person=(1 2 4 6 8)
+# sensors_per_person=(1)
+latencies=(0.1 1 10 100)
+
+function run_cmd { echo "$1"; eval $1; }
+
+for i in `seq 1 ${NUM_TESTS}` ; do
+    for alpha in ${alphas[@]} ; do
+        for s in ${sensors_per_person[@]} ; do 
+            echo "Running simulation for alpha=${alpha} and s=${sensors_per_person} ($i/${NUM_TESTS}) ..."
+            echo
+            
+            common_cmd="python src/sim.py -d -rt"
+            run_cmd "${common_cmd} -a ${alpha} -s ${s} -m a"
+            run_cmd "${common_cmd} -a ${alpha} -s ${s} -m b"
+            run_cmd "${common_cmd} -a ${alpha} -s ${s} -m c"
+        done
+    done
+
+    for latency in ${latencies[@]} ; do
+        common_cmd="python src/sim.py -q -a 0.2 -s 1 -rt"
+        run_cmd "${common_cmd} -l ${latency} -m a"
+        run_cmd "${common_cmd} -l ${latency} -m b"
+        run_cmd "${common_cmd} -l ${latency} -m c"  
+    done
+done

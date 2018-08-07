@@ -1,3 +1,4 @@
+from __future__ import print_function
 import argparse
 import json
 import logging
@@ -29,7 +30,9 @@ def parse_args():
 	parser.add_argument('-q', '--query', action='store_true')
 	parser.add_argument('-a', '--alpha_', type=float)
 	parser.add_argument('-s', '--sensors_per_person_', type=float)
-	parser.add_argument('-l', '--lambda_ms_', type=float)		
+	parser.add_argument('-l', '--lambda_ms_', type=float)
+	parser.add_argument('-rt','--read_topo', action='store_true')
+	parser.add_argument('-wt','--write_topo_and_done', action='store_true')
 
 	args = parser.parse_args()
 	
@@ -58,6 +61,9 @@ def init_conf(args):
 
 
 def load_dc(conf):
+	global dc_file
+	print('Loading DC data...')
+	
 	# load dc data
 	dc_file = DC_FILE_TEST if conf['test'] else DC_FILE_PROD
 	dc = pd.read_csv(dc_file, header=0, index_col=0, sep='\t')
@@ -92,39 +98,66 @@ def load_dc(conf):
 	return dc
 
 
-def load_topo(conf, dc):
-	# configure topo based on mapping policy
-	topo = pd.DataFrame(columns=['type', 'name', 'parent_id', 'dc_id', 'data_in'])
-	topo.type = dc.type
-	topo.name = dc.name
-	topo.parent_id = dc.parent_id
-	topo.data_in = 0.0
+def read_topo(mapping):
+	global dc_file
+	file_no_extension, _ = os.path.splitext(dc_file)
+	file = file_no_extension + '_topo-' + mapping + '.tsv'	
+	print('Reading topo file: {}'.format(file))
+	topo = pd.read_csv(file, header=0, index_col=0, sep='\t')
+	return topo
 
-	# data_in
+	
+def write_topo(topo, mapping):
+	global dc_file
+	file_no_extension, _ = os.path.splitext(dc_file)
+	file = file_no_extension + '_topo-' + mapping + '.tsv'
+	print('Writing topo file: {}'.format(file))	
+	topo.to_csv(file, sep='\t')
+
+	
+def load_topo(conf, dc):
+	print('Creating topology...', end='')
+
+	# configure topo based on mapping policy	
+	if conf['read_topo']:
+		topo = read_topo(conf['mapping'])
+	else:
+		topo = pd.DataFrame(columns=['type', 'name', 'parent_id', 'dc_id', 'data_in'])
+		topo.type = dc.type
+		topo.name = dc.name
+		topo.parent_id = dc.parent_id
+		topo.data_in = 0.0
+
+		if conf['mapping'] == 'a':
+			# Use all level DCs
+			topo.dc_id = dc.index
+		elif conf['mapping'] == 'b':
+			# Use state and region DCs
+			prev_state = ''
+			for i, row in topo.iterrows():
+				if prev_state != dc.loc[i].state_code:
+					print('.', end='')
+					sys.stdout.flush()
+					prev_state = dc.loc[i].state_code
+				if row.type in conf['levels'][str(0)]: # city, town, village, ...
+					topo['dc_id'][i] = dc.loc[dc.loc[i].parent_id].parent_id
+				elif row.type in conf['levels'][str(1)]: # county
+					topo['dc_id'][i] = dc.loc[i].parent_id
+				else:
+					# state or region
+					topo['dc_id'][i] = i
+		elif conf['mapping'] == 'c':
+			# Use region DCs only: there must be only one region DC
+			topo.dc_id = dc.loc[dc.type == 'region'].index.values[0]
+			
+	# data_in: load everytime
 	city_ids = topo.loc[topo.type.isin(conf['levels'][str(0)])].index
 	topo.loc[city_ids, 'data_in'] = topo.loc[city_ids].apply(lambda x: dc.loc[x.name, 'population'] * conf['sensors_per_person'] * conf['bytes_per_sensor_per_time_window'], axis=1)
-	
-	if conf['mapping'] == 'a':
-		# Use all level DCs
-		topo.dc_id = dc.index
-	elif conf['mapping'] == 'b':
-		# Use state and region DCs
-		prev_state = None
-		for i, row in topo.iterrows():
-			if dc.loc[i].state_code != prev_state:
-				print('Loading data for {}...'.format(dc.loc[i].state_code))
-				prev_state = dc.loc[i].state_code
-				
-			if row.type in conf['levels'][str(0)]: # city, town, village, ...
-				topo['dc_id'][i] = dc.loc[dc.loc[i].parent_id].parent_id
-			elif row.type in conf['levels'][str(1)]: # county
-				topo['dc_id'][i] = dc.loc[i].parent_id
-			else:
-				# state or region
-				topo['dc_id'][i] = i
-	elif conf['mapping'] == 'c':
-		# Use region DCs only: there must be only one region DC
-		topo.dc_id = dc.loc[dc.type == 'region'].index.values[0]
+
+	print('')	
+
+	if conf['write_topo_and_done']:
+		write_topo(topo, conf['mapping'])
 
 	return topo
 
@@ -132,6 +165,8 @@ def load_topo(conf, dc):
 def init(args):
 	conf = init_conf(args)
 	dc = load_dc(conf)
+
+	assert(not conf['read_topo'] or not conf['write_topo_and_done']), "Both read_topo and write_topo_and_done cannot be True!"
 	topo = load_topo(conf, dc)
 
 	Comm.set_params(dc, conf['sigmas'][0], conf['sigmas'][1], 
@@ -146,22 +181,21 @@ def init(args):
 	
 
 def aggregate_data(conf):
-	print
-	print('### Aggregate Data ###')
+	print('Simulating data aggregation...')
 
 	results = DataAggregator.aggregate(conf['levels'])
 	tx_data_stats = DataAggregator.get_tx_stats_kb()	
-	total_aggr_time = '{:.3f}'.format(sum(result.aggr_time for result in results))
+	total_aggr_time = sum(result.aggr_time for result in results)
 
 	if conf['verbose']:
-		print('Total Aggregation Time: {} s'.format(total_aggr_time))
-		print('alpha={}, sensors_per_person={}'\
-			  .format(conf['alpha'][0], conf['sensors_per_person']))
+		print('Total Aggregation Time: {:.3f} s'.format(total_aggr_time))
+		print('mapping={}, alpha={}, sensors_per_person={}'\
+			  .format(conf['mapping'], conf['alpha'], conf['sensors_per_person']))
 		for result in results:
-			print result
+			print(result)
 		print("Tx Data (mobile/LAN/WAN) = {} Kbytes".format(tx_data_stats))	
 	else:
-		l = [total_aggr_time]
+		l = ['{}, {:.3f}'.format(conf['mapping'], total_aggr_time)]
 		l += ['{}, {}'.format(conf['alpha'], conf['sensors_per_person'])]
 		l += [result.to_csv() for result in results]
 		l += ['{:.3f}, {:.3f}, {:.3f}'.format(tx_data_stats[0], tx_data_stats[1], tx_data_stats[2])]
@@ -169,8 +203,7 @@ def aggregate_data(conf):
 
 
 def query_data(conf):
-	print
-	print('### Query Data ###')
+	print('Simulating data queries...')	
 	
 	city_ids = dc.loc[dc.type.isin(conf['levels']['0'])].index
 	query_clients = []
@@ -192,40 +225,47 @@ def query_data(conf):
 	max_query = max(query_results, key=lambda q: q.resp_time)
 	min_query = min(query_results, key=lambda q: q.resp_time)
 	resp_times = [q.resp_time for q in query_results]
-	avg_time = '{:.3f}'.format(np.mean(resp_times))
+	avg_time = np.mean(resp_times)
 	
 	if conf['verbose']:
 		print('Response Time:')
-		print('lambda={} ms'.format(conf['lambda_ms']))
+		print('mapping={}, lambda={} ms'.format(conf['mapping'], conf['lambda_ms']))
 		print('Max: {}'.format(max_query))
 		print('Min: {}'.format(min_query))
-		print('Avg: {} ms'.format(avg_time))
-		# CDF
-		num_bins = 40
-		counts, bin_edges = np.histogram(resp_times, bins=num_bins, normed=True)
-		cdf = np.cumsum(counts)
-		plt.plot (bin_edges[1:], cdf/cdf[-1])
-		print bin_edges[1:]
-		print cdf/cdf[-1]
-		plt.show()
+		print('Avg: {:.3f} ms'.format(avg_time))
 	else:
-		l = ['{}'.format(conf['lambda'])]
-		l += [max_query.to_csv(), min_query.to_csv(), avg_time]
+		l = ['{}, {}'.format(conf['mapping'], conf['lambda_ms'])]
+		l += [max_query.to_csv(), min_query.to_csv(), '{:.3f}'.format(avg_time)]
 		print('QueryResults: {}'.format(', '.join(l)))
+
+	# CDF
+	num_bins = 40
+	counts, bin_edges = np.histogram(resp_times, bins=num_bins, normed=True)
+	cdf = np.cumsum(counts)
+	print('CDF: {}, {}, {}, {}'.format(conf['mapping'], conf['lambda_ms'], bin_edges[1:].tolist(), (cdf/cdf[-1]).tolist()))
+	if conf['verbose']:
+		plt.plot (bin_edges[1:], cdf/cdf[-1])
+		plt.show()		
 		
 
 def main(args):
 	global dc, topo, resp_times
 	conf, dc, topo = init(args)
-	log.info('Configs: {}'.format(conf))
-	if not conf['data_aggregation'] and not conf['query']:
-		# default: run both
-		aggregate_data(conf)
-		query_data(conf)
-	if conf['data_aggregation']:
-		aggregate_data(conf)
-	if conf['query']:
-		query_data(conf)		
+
+	if not conf['write_topo_and_done']:
+		log.info('Configs: {}'.format(conf))
+		if not conf['data_aggregation'] and not conf['query']:
+			# default: run both
+			aggregate_data(conf)
+			query_data(conf)
+		if conf['data_aggregation']:
+			aggregate_data(conf)
+		if conf['query']:
+			query_data(conf)
+
+	print('Done!')
+	print
+		
 	
 if __name__ == '__main__':
 	args = parse_args()

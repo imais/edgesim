@@ -1,0 +1,3 @@
+python src/sim.py -m a -wt
+python src/sim.py -m b -wt
+python src/sim.py -m c -wt
