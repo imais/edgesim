@@ -25,7 +25,7 @@ class Comm:
 											 dc2.lat, dc2.lng)
 		bw = Comm.bw_lan if dc1_id == dc2_id else Comm.bw_wan
 		time = Comm.sigma1 + Comm.sigma2 * dist_mi + data / bw
-		return time
+		return time, dist_mi
 
 		
 	@staticmethod

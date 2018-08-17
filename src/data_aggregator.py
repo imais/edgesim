@@ -6,12 +6,18 @@ log = logging.getLogger()
 
 class DataAggregationResult(object):
 	def __init__(self, level, aggr_time, exec_time, comm_time,
+				 topo1_id, topo1_name, topo2_id, topo2_name, dist_mi,
 				 dc1_id, dc1_name, dc1_data_in, dc1_m,
 				 dc2_id, dc2_name):
 		self.level = level
 		self.aggr_time = aggr_time
 		self.exec_time = exec_time
 		self.comm_time = comm_time
+		self.topo1_id = topo1_id
+		self.topo1_name = topo1_name
+		self.topo2_id = topo2_id
+		self.topo2_name = topo2_name
+		self.dist_mi = dist_mi
 		self.dc1_id = dc1_id
 		self.dc1_name = dc1_name
 		self.dc1_data_in = dc1_data_in
@@ -21,12 +27,12 @@ class DataAggregationResult(object):
 
 
 	def __str__(self):
-		s = 'L{}: time(total:{:.3f}, exec:{:.3f}, comm:{:.3f}) s, dc1(id:{}, name:{}, data_in:{:.3f} bytes, m:{}), dc2(id:{}, name:{})'.format(self.level, self.aggr_time, self.exec_time, self.comm_time, self.dc1_id, self.dc1_name, self.dc1_data_in, self.dc1_m, self.dc2_id, self.dc2_name)
+		s = 'L{}: time(total:{:.3f}, exec:{:.3f}, comm:{:.3f}) s, topo1(id:{}, name:{}), topo2(id:{}, name:{}), dist_mi: {:.3f}, dc1(id:{}, name:{}, data_in:{:.3f} mb, m:{}), dc2(id:{}, name:{})'.format(self.level, self.aggr_time, self.exec_time, self.comm_time, self.topo1_id, self.topo1_name, self.topo2_id, self.topo2_name, self.dist_mi, self.dc1_id, self.dc1_name, (self.dc1_data_in/1e6), self.dc1_m, self.dc2_id, self.dc2_name)
 		return s
 
 	
 	def to_csv(self):
-		s = '{}, {:.3f}, {:.3f}, {:.3f}, {}, {}, {:.3f}, {}, {}, {}'.format(self.level, self.aggr_time, self.exec_time, self.comm_time, self.dc1_id, self.dc1_name, self.dc1_data_in, self.dc1_m, self.dc2_id, self.dc2_name)
+		s = '{}, {:.3f}, {:.3f}, {:.3f}, {}, {}, {}, {}, {}, {}, {:.3f}, {}, {}, {}'.format(self.level, self.aggr_time, self.exec_time, self.comm_time, self.topo1_id, self.topo1_name, self.topo2_id, self.topo2_name, self.dc1_id, self.dc1_name, (self.dc1_data_in/1e6), self.dc1_m, self.dc2_id, self.dc2_name)		
 		return s
 
 		
@@ -58,11 +64,11 @@ class DataAggregator(object):
 				dc1_id = entity.dc_id
 				data_in = entity.data_in
 				if l < L - 1:
-					data_out = entity['data_in'] * (conf['alpha'] if l == 0 else 1.0)
+					data_out = entity['data_in'] * (conf['alpha'] if l == 0 else 1.0) * conf['r']
 					topo.loc[entity.parent_id, 'data_in'] += data_out
 					dc2_id = topo.loc[entity.parent_id].dc_id
 					exec_time = Exec.estimate_map_reduce_time(dc1_id, data_in)
-					comm_time = Comm.estimate_dc_comm_time(dc1_id, dc2_id, data_out)
+					comm_time, dist_mi = Comm.estimate_dc_comm_time(dc1_id, dc2_id, data_out)
 					aggr_time = exec_time + comm_time
 					if l == 0:
 						DataAggregator.mobile_data += data_in
@@ -75,11 +81,15 @@ class DataAggregator(object):
 					dc2_id = None
 					exec_time = Exec.estimate_map_reduce_time(dc1_id, data_in)
 					comm_time = 0.0
+					dist_mi = 0
 					aggr_time = exec_time
 
 				# save time results in msec
 				result = DataAggregationResult(l, aggr_time, exec_time,
 											   comm_time if comm_time is not None else None,
+											   entity.name, entity['name'],
+											   entity.parent_id, topo.loc[entity.parent_id, 'name'] if entity.parent_id != -1 else None,
+											   dist_mi,
 											   dc1_id, dc.loc[dc1_id, 'name'],
 											   data_in, dc.loc[dc1_id, 'm'], 
 											   dc2_id,
@@ -92,5 +102,5 @@ class DataAggregator(object):
 
 	
 	@staticmethod
-	def get_tx_stats_kb():
-		return DataAggregator.mobile_data/1024, DataAggregator.lan_data/1024, DataAggregator.wan_data/1024		
+	def get_tx_stats(unit):
+		return DataAggregator.mobile_data/unit, DataAggregator.lan_data/unit, DataAggregator.wan_data/unit

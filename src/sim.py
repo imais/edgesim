@@ -71,30 +71,16 @@ def load_dc(conf):
 	dc['m'] = ''	
 	if conf['machine']['alloc_policy'] == 'population':
 		L = len(conf['levels'])
-		divisor = 1
 		population_per_machine = conf['machine']['population']['population_per_machine']
 		for l in range(L):
-			target_ids = dc.loc[dc.type.isin(conf['levels'][str(l)])].index
-			# avg_m = conf['machine']['population']['avg_machines'][l]
+			ids = dc.loc[dc.type.isin(conf['levels'][str(l)])].index
 			# min_m = conf['machine']['population']['min_machines'][l]
-			# total_m = avg_m * len(target_ids)			
-			# total_population = sum(dc.loc[target_ids, 'population'])
-			# dc['m'] = dc.loc[target_ids].\
-			# 		  apply(lambda x: \
-			# 				max(min_m, \
-			# 					int(total_m * x['population'] / total_population)),
-			# 				axis = 1)
-			min_m = conf['machine']['population']['min_machines'][l]
-			dc.loc[target_ids, 'm'] = dc.loc[target_ids].apply(lambda x: max(min_m, int(x['population'] / population_per_machine / divisor)), axis = 1)
-			divisor *= 2
-			# machines:
-			#   cities   = {mean: 2.01, max: 26, min: 2},
-			#   counties = {mean: 4.17, max: 13, min: 4},
-			#   states   = {mean: 17.78, [8, 17, 8, 8, 22, 49, 32, 8, 8]},
-			#   region   = 70
+			dc.loc[ids, 'm'] = dc.loc[ids].apply(lambda x: max(1, int((conf['r'] ** l) * (x['population'] / population_per_machine))), axis = 1)
+			m = dc.loc[ids, 'm']
+			print('L{} m: mean={}, max={}, min={}, total={}'.format(l, np.mean(m), np.max(m), np.min(m), sum(m)))
 	elif conf['machine']['alloc_policy'] == 'fixed':
 		raise NotImplementedError('fixed allocation policy not implementd')
-
+	
 	return dc
 
 
@@ -184,7 +170,7 @@ def aggregate_data(conf):
 	print('Simulating data aggregation...')
 
 	results = DataAggregator.aggregate(conf['levels'])
-	tx_data_stats = DataAggregator.get_tx_stats_kb()	
+	tx_stats = DataAggregator.get_tx_stats(1e6) # mbytes
 	total_aggr_time = sum(result.aggr_time for result in results)
 
 	if conf['verbose']:
@@ -198,20 +184,20 @@ def aggregate_data(conf):
 		l = ['{}, {:.3f}'.format(conf['mapping'], total_aggr_time)]
 		l += ['{}, {}'.format(conf['alpha'], conf['sensors_per_person'])]
 		l += [result.to_csv() for result in results]
-		l += ['{:.3f}, {:.3f}, {:.3f}'.format(tx_data_stats[0], tx_data_stats[1], tx_data_stats[2])]
+		l += ['{:.3f}, {:.3f}, {:.3f}'.format(tx_stats[0], tx_stats[1], tx_stats[2])]
 		print('DataAggrResults: {}'.format(', '.join(l)))
 
 
 def query_data(conf):
+	global dc, topo
+	
 	print('Simulating data queries...')	
 	
-	city_ids = dc.loc[dc.type.isin(conf['levels']['0'])].index
+	city_ids = topo.loc[topo.type.isin(conf['levels']['0'])].index
 	query_clients = []
 	prev_state = None
+	print('Creating query clients...')
 	for city_id in city_ids:
-		if dc.loc[city_id].state_code != prev_state:
-			print('Creating query clients for {}...'.format(dc.loc[city_id].state_code))
-			prev_state = dc.loc[city_id].state_code
 		query_clients.append(QueryClient(conf, dc, topo, dc.loc[city_id]))	
 
 	query_results = []
@@ -226,6 +212,10 @@ def query_data(conf):
 	min_query = min(query_results, key=lambda q: q.resp_time)
 	resp_times = [q.resp_time for q in query_results]
 	avg_time = np.mean(resp_times)
+
+	# print('All queries:')
+	# for q in query_results:
+	# 	print('{}'.format(q))
 	
 	if conf['verbose']:
 		print('Response Time:')
@@ -234,7 +224,7 @@ def query_data(conf):
 		print('Min: {}'.format(min_query))
 		print('Avg: {:.3f} ms'.format(avg_time))
 	else:
-		l = ['{}, {}'.format(conf['mapping'], conf['lambda_ms'])]
+		l = ['{}, {}'.format(conf['lambda_ms'], conf['mapping'])]
 		l += [max_query.to_csv(), min_query.to_csv(), '{:.3f}'.format(avg_time)]
 		print('QueryResults: {}'.format(', '.join(l)))
 
@@ -264,7 +254,7 @@ def main(args):
 			query_data(conf)
 
 	print('Done!')
-	print
+	print('')
 		
 	
 if __name__ == '__main__':
