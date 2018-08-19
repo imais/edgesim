@@ -28,11 +28,14 @@ def parse_args():
 	parser.add_argument('-t', '--test', action='store_true')
 	parser.add_argument('-d', '--data_aggregation', action='store_true')
 	parser.add_argument('-q', '--query', action='store_true')
-	parser.add_argument('-a', '--alpha_', type=float)
+	parser.add_argument('-sm','--s_map', type=float)
+	parser.add_argument('-sr','--s_reduce', type=float)	
 	parser.add_argument('-s', '--sensors_per_person_', type=float)
 	parser.add_argument('-l', '--lambda_ms_', type=float)
 	parser.add_argument('-rt','--read_topo', action='store_true')
 	parser.add_argument('-wt','--write_topo_and_done', action='store_true')
+	parser.add_argument('-ap','--alloc_policy', default='population', choices=['population', 'fixed'], type=str)
+	parser.add_argument('-f', '--fixed', type=int)
 
 	args = parser.parse_args()
 	
@@ -46,15 +49,29 @@ def init_conf(args):
 			conf = dict(json.load(f).items() + vars(args).items())
 
 			# overwrite entries in conf with arguments
-			if conf['alpha_'] is not None:
-				conf['alpha'] = conf['alpha_']
-			del conf['alpha_']
+			if conf['fixed'] is not None:
+				conf['machine']['alloc_policy'] = 'fixed'
+				conf['machine']['fixed'] = conf['fixed']
+				del conf['fixed']
+			elif conf['alloc_policy'] is not None:
+				conf['machine']['alloc_policy'] = conf['alloc_policy']
+				del conf['alloc_policy']
+				
+			if conf['s_map'] is not None:
+				conf['s_m'] = conf['s_map']
+				del conf['s_map']
+				
+			if conf['s_reduce'] is not None:
+				conf['s_r'] = conf['s_reduce']
+				del conf['s_reduce']
+				
 			if conf['sensors_per_person_'] is not None:
 				conf['sensors_per_person'] = conf['sensors_per_person_']
-			del conf['sensors_per_person_']
+				del conf['sensors_per_person_']
+				
 			if conf['lambda_ms_'] is not None:
 				conf['lambda_ms'] = conf['lambda_ms_']
-			del conf['lambda_ms_']
+				del conf['lambda_ms_']
 	else:
 		conf = args
 	return conf
@@ -74,12 +91,19 @@ def load_dc(conf):
 		population_per_machine = conf['machine']['population']['population_per_machine']
 		for l in range(L):
 			ids = dc.loc[dc.type.isin(conf['levels'][str(l)])].index
-			# min_m = conf['machine']['population']['min_machines'][l]
-			dc.loc[ids, 'm'] = dc.loc[ids].apply(lambda x: max(1, int((conf['r'] ** l) * (x['population'] / population_per_machine))), axis = 1)
+			# dc.loc[ids, 'm'] = dc.loc[ids].apply(lambda x: max(1, int((conf['r'] ** l) * (x['population'] / population_per_machine))), axis = 1)
+			dc.loc[ids, 'm'] = dc.loc[ids].apply(lambda x: max(1, int((x['population'] / population_per_machine))), axis = 1)			
 			m = dc.loc[ids, 'm']
-			print('L{} m: mean={}, max={}, min={}, total={}'.format(l, np.mean(m), np.max(m), np.min(m), sum(m)))
+			print('L{} m: mean={}, max={}, min={}, total={}, n={}'.format(l, np.mean(m), np.max(m), np.min(m), sum(m), len(m)))
 	elif conf['machine']['alloc_policy'] == 'fixed':
-		raise NotImplementedError('fixed allocation policy not implementd')
+		# raise NotImplementedError('fixed allocation policy not implementd')
+		dc['m'] = conf['machine']['fixed']
+
+	# update later when topology is decided
+	dc['data_in'] = 0.0
+
+	# to compute machine hours, in seconds
+	dc['max_usage'] = 0.0
 	
 	return dc
 
@@ -135,8 +159,7 @@ def load_topo(conf, dc):
 		elif conf['mapping'] == 'c':
 			# Use region DCs only: there must be only one region DC
 			topo.dc_id = dc.loc[dc.type == 'region'].index.values[0]
-			
-	# data_in: load everytime
+
 	city_ids = topo.loc[topo.type.isin(conf['levels'][str(0)])].index
 	topo.loc[city_ids, 'data_in'] = topo.loc[city_ids].apply(lambda x: dc.loc[x.name, 'population'] * conf['sensors_per_person'] * conf['bytes_per_sensor_per_time_window'], axis=1)
 
@@ -154,6 +177,7 @@ def init(args):
 
 	assert(not conf['read_topo'] or not conf['write_topo_and_done']), "Both read_topo and write_topo_and_done cannot be True!"
 	topo = load_topo(conf, dc)
+	
 
 	Comm.set_params(dc, conf['sigmas'][0], conf['sigmas'][1], 
 					conf['omegas'][0], conf['omegas'][1], conf['omegas'][2]);
@@ -170,21 +194,22 @@ def aggregate_data(conf):
 	print('Simulating data aggregation...')
 
 	results = DataAggregator.aggregate(conf['levels'])
-	tx_stats = DataAggregator.get_tx_stats(1e6) # mbytes
+	tx_stats = DataAggregator.get_tx_stats(1e9) # Gbytes
+	mh = DataAggregator.get_machine_hours()
 	total_aggr_time = sum(result.aggr_time for result in results)
 
 	if conf['verbose']:
 		print('Total Aggregation Time: {:.3f} s'.format(total_aggr_time))
-		print('mapping={}, alpha={}, sensors_per_person={}'\
-			  .format(conf['mapping'], conf['alpha'], conf['sensors_per_person']))
+		print('mapping={}, s_m={}, s_r={}, sensors_per_person={}'\
+			  .format(conf['mapping'], conf['s_m'], conf['s_r'], conf['sensors_per_person']))
 		for result in results:
 			print(result)
-		print("Tx Data (mobile/LAN/WAN) = {} Kbytes".format(tx_data_stats))	
+		print("Tx Data (mobile/WAN/LAN) = {} Gbytes, Machine hours = {}".format(tx_stats, mh))
 	else:
-		l = ['{}, {:.3f}'.format(conf['mapping'], total_aggr_time)]
-		l += ['{}, {}'.format(conf['alpha'], conf['sensors_per_person'])]
+		l = ['{}, {}, {}'.format(conf['mapping'], conf['s_m'], conf['s_r'])]
+		l += ['{:3f}'.format(total_aggr_time)]
 		l += [result.to_csv() for result in results]
-		l += ['{:.3f}, {:.3f}, {:.3f}'.format(tx_stats[0], tx_stats[1], tx_stats[2])]
+		l += ['{:.3f}, {:.3f}, {:.3f}, {:.3f}'.format(tx_stats[0], tx_stats[1], tx_stats[2], mh)]
 		print('DataAggrResults: {}'.format(', '.join(l)))
 
 

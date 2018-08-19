@@ -1,4 +1,5 @@
 import logging
+import pandas as pd
 from models import Exec, Comm
 
 log = logging.getLogger()
@@ -60,30 +61,54 @@ class DataAggregator(object):
 		for l in range(L):
 			results = []
 			entities = topo.loc[topo.type.isin(levels[str(l)])]
+			max_usage = pd.DataFrame(data=0.0, index=dc.index, columns=['max_usage'])
+
+			# collect incoming data per dc per level for map-reduce exec time
+			dc.loc[topo.loc[entities.index, 'dc_id'], 'data_in'] = 0.0
+			for index, entity in entities.iterrows():
+				dc.loc[entity.dc_id, 'data_in'] += entity.data_in
+			
 			for index, entity in entities.iterrows():
 				dc1_id = entity.dc_id
-				data_in = entity.data_in
+				dc_data_in = dc.loc[dc1_id, 'data_in']
+
+				m = 0
 				if l < L - 1:
-					data_out = entity['data_in'] * (conf['alpha'] if l == 0 else 1.0) * conf['r']
+					# map-reduce: compute based on data_in per dc
+					exec_time = 0.0					
+					if l == 0:
+						exec_time += Exec.estimate_map_time(dc1_id, dc_data_in)
+						dc_data_in *= conf['s_m']
+					exec_time += Exec.estimate_reduce_time(dc1_id, dc_data_in)
+					
+					# communcation: compute based on data_in per entity  
+					data_out = entity['data_in'] * (conf['s_m'] if l == 0 else 1.0) * conf['s_r']
 					topo.loc[entity.parent_id, 'data_in'] += data_out
 					dc2_id = topo.loc[entity.parent_id].dc_id
-					exec_time = Exec.estimate_map_reduce_time(dc1_id, data_in)
+
 					comm_time, dist_mi = Comm.estimate_dc_comm_time(dc1_id, dc2_id, data_out)
 					aggr_time = exec_time + comm_time
+
+					# stats
 					if l == 0:
-						DataAggregator.mobile_data += data_in
-					elif dc1_id == dc2_id:
-						DataAggregator.lan_data += data_in
+						# incoming data to level 0 are all mobile
+						DataAggregator.mobile_data += entity['data_in']
+					if dc1_id == dc2_id:
+						DataAggregator.lan_data += data_out
 					else:
-						DataAggregator.wan_data += data_in
+						DataAggregator.wan_data += data_out
+
 				else:
 					# region DC
 					dc2_id = None
-					exec_time = Exec.estimate_map_reduce_time(dc1_id, data_in)
+					exec_time = Exec.estimate_reduce_time(dc1_id, dc_data_in)
 					comm_time = 0.0
 					dist_mi = 0
 					aggr_time = exec_time
 
+				# keep track of max usage of machines per dc for level l
+				max_usage.loc[dc1_id, 'max_usage'] = max(max_usage.loc[dc1_id, 'max_usage'], aggr_time)
+					
 				# save time results in msec
 				result = DataAggregationResult(l, aggr_time, exec_time,
 											   comm_time if comm_time is not None else None,
@@ -91,11 +116,12 @@ class DataAggregator(object):
 											   entity.parent_id, topo.loc[entity.parent_id, 'name'] if entity.parent_id != -1 else None,
 											   dist_mi,
 											   dc1_id, dc.loc[dc1_id, 'name'],
-											   data_in, dc.loc[dc1_id, 'm'], 
+											   dc_data_in, dc.loc[dc1_id, 'm'], 
 											   dc2_id,
 											   dc.loc[dc2_id, 'name'] if dc2_id is not None else None)
 				results.append(result)
 
+			dc['max_usage'] += max_usage['max_usage']
 			max_results.append(max(results, key=lambda (result): result.aggr_time))
 
 		return max_results
@@ -103,4 +129,9 @@ class DataAggregator(object):
 	
 	@staticmethod
 	def get_tx_stats(unit):
-		return DataAggregator.mobile_data/unit, DataAggregator.lan_data/unit, DataAggregator.wan_data/unit
+		return DataAggregator.mobile_data/unit, DataAggregator.wan_data/unit, DataAggregator.lan_data/unit
+
+	@staticmethod
+	def get_machine_hours():
+		machine_hours = sum(DataAggregator.dc.apply(lambda x: x['m'] * x['max_usage'] / 3600, axis=1))
+		return machine_hours

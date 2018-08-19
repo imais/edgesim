@@ -51,7 +51,7 @@ class Exec:
 
 		
 	@staticmethod
-	def estimate_map_reduce_time(dc_id, data):
+	def estimate_map_time(dc_id, data):
 		m = Exec.dc.loc[dc_id].m
 		return data / (Exec.beta1 + Exec.beta2 * m)
 
