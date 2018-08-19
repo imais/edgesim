@@ -1,32 +1,57 @@
 #!/bin/bash
 
-NUM_TESTS=1
+TEST_DATA=0
+DO_AGGR=1
+DO_QUERY=0
 
-alphas=(0.2 0.4 0.6 0.8 1.0 1.2)
-# alphas=(0.2)
-sensors_per_person=(1 2 4 6 8)
-# sensors_per_person=(1)
-latencies=(0.1 1 10 100)
+BASE_CMD="python src/sim.py -rt"
+AGGR_CMD="${BASE_CMD} -d"
+QUERY_CMD="${BASE_CMD} -q"
+
+if [ ${TEST_DATA} = 1 ] ; then
+    AGGR_CMD="${AGGR_CMD} -t"
+    QUERY_CMD="${QUERY_CMD} -t"
+fi
+
+mappings=(a b c)
+# s_maps=(0.25 0.5 1.0 2.0)
+s_maps=(0.5)
+lambdas=(0.1 1 10 100)
+# lambdas=(0.1)
+fixed_machines=(1 2 4 8 16)
+# fixed_machines=() # use 'popoulation' alloc_policy
 
 function run_cmd { echo "$1"; eval $1; }
+# function run_cmd { echo "$1" ; }
+function run_aggr {
+    if [ ${DO_AGGR} = 1 ] ; then
+        run_cmd "${AGGR_CMD} $1"
+    fi
+}
+function run_query {
+    if [ ${DO_QUERY} = 1 ] ; then    
+        run_cmd "${QUERY_CMD} $1"
+    fi
+}
 
-for i in `seq 1 ${NUM_TESTS}` ; do
-    for alpha in ${alphas[@]} ; do
-        for s in ${sensors_per_person[@]} ; do 
-            echo "Running simulation for alpha=${alpha} and s=${sensors_per_person} ($i/${NUM_TESTS}) ..."
-            echo
-            
-            common_cmd="python src/sim.py -d -rt"
-            run_cmd "${common_cmd} -a ${alpha} -s ${s} -m a"
-            run_cmd "${common_cmd} -a ${alpha} -s ${s} -m b"
-            run_cmd "${common_cmd} -a ${alpha} -s ${s} -m c"
+if [ ${#fixed_machines[@]} -eq 0 ] ; then
+    for mapping in ${mappings[@]} ; do
+        for sm in ${s_maps[@]} ; do
+            run_aggr "-m ${mapping} -sm ${sm}"
+        done
+        for lambda in ${lambdas[@]} ; do
+            run_query "-m ${mapping} -l ${lambda}"            
         done
     done
-
-    for latency in ${latencies[@]} ; do
-        common_cmd="python src/sim.py -q -a 0.2 -s 1 -rt"
-        run_cmd "${common_cmd} -l ${latency} -m a"
-        run_cmd "${common_cmd} -l ${latency} -m b"
-        run_cmd "${common_cmd} -l ${latency} -m c"  
-    done
-done
+else
+    for mapping in ${mappings[@]} ; do
+        for f in ${fixed_machines[@]} ; do        
+            for sm in ${s_maps[@]} ; do
+                run_aggr "-m ${mapping} -sm ${sm} -f ${f}"
+            done
+            for lambda in ${lambdas[@]} ; do
+                run_query "-m ${mapping} -l ${lambda} -f ${f}"            
+            done
+        done
+    done    
+fi

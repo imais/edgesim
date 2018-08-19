@@ -197,19 +197,26 @@ def aggregate_data(conf):
 	tx_stats = DataAggregator.get_tx_stats(1e9) # Gbytes
 	mh = DataAggregator.get_machine_hours()
 	total_aggr_time = sum(result.aggr_time for result in results)
+	if conf['machine']['alloc_policy'] == 'population':
+		alloc_policy = 'population'
+	elif conf['machine']['alloc_policy'] == 'fixed':
+		alloc_policy = str(conf['machine']['fixed'])
+	else:
+		alloc_policy = 'None'
 
 	if conf['verbose']:
 		print('Total Aggregation Time: {:.3f} s'.format(total_aggr_time))
-		print('mapping={}, s_m={}, s_r={}, sensors_per_person={}'\
-			  .format(conf['mapping'], conf['s_m'], conf['s_r'], conf['sensors_per_person']))
+		print('mapping={}, s_m={}, s_r={}, sensors_per_person={}, alloc_policy={}'\
+			  .format(conf['mapping'], conf['s_m'], conf['s_r'], conf['sensors_per_person'], alloc_policy))
 		for result in results:
 			print(result)
-		print("Tx Data (mobile/WAN/LAN) = {} Gbytes, Machine hours = {}".format(tx_stats, mh))
+		print("Tx Data (mobile/WAN/LAN) = {} Gbytes, Machine hours = {}, {}".format(tx_stats, mh, sum(mh)))
 	else:
-		l = ['{}, {}, {}'.format(conf['mapping'], conf['s_m'], conf['s_r'])]
+		l = ['{}, {}, {}, {}'.format(conf['mapping'], conf['s_m'], conf['s_r'], alloc_policy)]
 		l += ['{:3f}'.format(total_aggr_time)]
 		l += [result.to_csv() for result in results]
-		l += ['{:.3f}, {:.3f}, {:.3f}, {:.3f}'.format(tx_stats[0], tx_stats[1], tx_stats[2], mh)]
+		l += ['{:.3f}, {:.3f}, {:.3f}'.format(tx_stats[0], tx_stats[1], tx_stats[2])]
+		l += ['{:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}'.format(mh[0], mh[1], mh[2], mh[3], sum(mh))]
 		print('DataAggrResults: {}'.format(', '.join(l)))
 
 

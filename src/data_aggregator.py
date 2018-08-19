@@ -41,6 +41,7 @@ class DataAggregator(object):
 	mobile_data = 0.0
 	wan_data = 0.0
 	lan_data = 0.0
+	machine_hours = []
 	
 	@staticmethod
 	def set_params(conf, dc, topo):
@@ -121,7 +122,7 @@ class DataAggregator(object):
 											   dc.loc[dc2_id, 'name'] if dc2_id is not None else None)
 				results.append(result)
 
-			dc['max_usage'] += max_usage['max_usage']
+			DataAggregator.machine_hours.append(sum(dc['m'] * max_usage['max_usage'] / 3600))
 			max_results.append(max(results, key=lambda (result): result.aggr_time))
 
 		return max_results
@@ -133,5 +134,4 @@ class DataAggregator(object):
 
 	@staticmethod
 	def get_machine_hours():
-		machine_hours = sum(DataAggregator.dc.apply(lambda x: x['m'] * x['max_usage'] / 3600, axis=1))
-		return machine_hours
+		return DataAggregator.machine_hours
