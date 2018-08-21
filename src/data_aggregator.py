@@ -41,7 +41,8 @@ class DataAggregator(object):
 	mobile_data = 0.0
 	wan_data = 0.0
 	lan_data = 0.0
-	machine_hours = []
+	vm_hours_topo = []					# index: logical level
+	vm_hours_dc = [0.0, 0.0, 0.0, 0.0]	# index: cluster level
 	
 	@staticmethod
 	def set_params(conf, dc, topo):
@@ -122,7 +123,12 @@ class DataAggregator(object):
 											   dc.loc[dc2_id, 'name'] if dc2_id is not None else None)
 				results.append(result)
 
-			DataAggregator.machine_hours.append(sum(dc['m'] * max_usage['max_usage'] / 3600))
+			# stats
+			DataAggregator.vm_hours_topo.append(sum(dc['m'] * max_usage['max_usage'] / 3600))
+			for l in range(L):
+				ids = (max_usage['max_usage'] != 0.0) & dc.type.isin(levels[str(l)])
+				mh = sum(dc.loc[ids, 'm'] * max_usage.loc[ids, 'max_usage'] / 3600)
+				DataAggregator.vm_hours_dc[l] += mh
 			max_results.append(max(results, key=lambda (result): result.aggr_time))
 
 		return max_results
@@ -133,5 +139,9 @@ class DataAggregator(object):
 		return DataAggregator.mobile_data/unit, DataAggregator.wan_data/unit, DataAggregator.lan_data/unit
 
 	@staticmethod
-	def get_machine_hours():
-		return DataAggregator.machine_hours
+	def get_vm_hours_topo():
+		return DataAggregator.vm_hours_topo
+
+	@staticmethod
+	def get_vm_hours_dc():
+		return DataAggregator.vm_hours_dc
