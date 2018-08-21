@@ -190,14 +190,10 @@ def aggregate_data(conf):
 
 	results = DataAggregator.aggregate(conf['levels'])
 	tx_stats = DataAggregator.get_tx_stats(1e9) # Gbytes
-	mh = DataAggregator.get_machine_hours()
+	mh_topo = DataAggregator.get_vm_hours_topo()
+	mh_dc = DataAggregator.get_vm_hours_dc()	
 	total_aggr_time = sum(result.aggr_time for result in results)
-	if conf['machine']['alloc_policy'] == 'population':
-		alloc_policy = 'population'
-	elif conf['machine']['alloc_policy'] == 'fixed':
-		alloc_policy = str(conf['machine']['fixed'])
-	else:
-		alloc_policy = 'None'
+	alloc_policy = conf['machine']['alloc_policy']
 
 	if conf['verbose']:
 		print('Total Aggregation Time: {:.5f} s'.format(total_aggr_time))
@@ -205,13 +201,16 @@ def aggregate_data(conf):
 			  .format(conf['mapping'], conf['s_m'], conf['s_r'], conf['sensors_per_person'], alloc_policy))
 		for result in results:
 			print(result)
-		print("Tx Data (mobile/WAN/LAN) = {} Gbytes, Machine hours = {}, {}".format(tx_stats, mh, sum(mh)))
+		print("Tx Data (mobile/WAN/LAN) = {} Gbytes".format(tx_stats))
+		print("VM hours per logical level = {}, {}".format(mh_topo, sum(mh_topo)))
+		print("VM hours per cluster level = {}, {}".format(mh_dc, sum(mh_dc)))
 	else:
 		l = ['{}, {}, {}, {}'.format(conf['mapping'], conf['s_m'], conf['s_r'], alloc_policy)]
 		l += ['{:5f}'.format(total_aggr_time)]
 		l += [result.to_csv() for result in results]
 		l += ['{:.5f}, {:.5f}, {:.5f}'.format(tx_stats[0], tx_stats[1], tx_stats[2])]
-		l += ['{:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}'.format(mh[0], mh[1], mh[2], mh[3], sum(mh))]
+		l += ['{:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}'.format(mh_topo[0], mh_topo[1], mh_topo[2], mh_topo[3], sum(mh_topo))]
+		l += ['{:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}'.format(mh_dc[0], mh_dc[1], mh_dc[2], mh_dc[3], sum(mh_dc))]
 		print('DataAggrResults: {}'.format(', '.join(l)))
 
 
