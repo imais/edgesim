@@ -11,7 +11,7 @@
     "test_duration_sec": 5.0,
     "sensors_per_person": 1.0,
     "bytes_per_sensor_per_time_window": 128,
-    "s_m": 0.6,
+    "s_m": 0.5,
     "s_r": 0.6,
     "query_req_bytes": 128,
     "query_resp_bytes": 2048,
@@ -25,7 +25,7 @@
     "test": [["a", "b"], ["c"]],
     "machine": {
         "alloc_policy": "population",
-        "fixed": 1,
+        "fixed": [1, 4, 16, 64],
         "population": {
             "population_per_machine": 5e5
         }

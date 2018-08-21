@@ -83,12 +83,12 @@ class QueryResult(object):
 		
 
 	def __str__(self):
-		s = 'time(total:{:.3f}, comm_req:{:.3f}, query:{:.3f}, comm_resp:{:.3f}) ms, {:.3f} mi, src(id:{}, name:{}, lat:{}, lng:{}), dest(id:{}, type:{}, name:{}), dc(id:{}, type:{}, name:{}, qps:{:.3f}, m:{})'.format(self.resp_time, self.comm_req_time, self.query_time, self.comm_resp_time, self.dist_mi, self.src_id, self.src_name, self.src_lat, self.src_lng, self.dest_id, self.dest_type, self.dest_name, self.dc_id, self.dc_type, self.dc_name, self.dc_qps, self.dc_m)
+		s = 'time(total:{:.5f}, comm_req:{:.5f}, query:{:.5f}, comm_resp:{:.5f}) ms, {:.5f} mi, src(id:{}, name:{}, lat:{}, lng:{}), dest(id:{}, type:{}, name:{}), dc(id:{}, type:{}, name:{}, qps:{:.5f}, m:{})'.format(self.resp_time, self.comm_req_time, self.query_time, self.comm_resp_time, self.dist_mi, self.src_id, self.src_name, self.src_lat, self.src_lng, self.dest_id, self.dest_type, self.dest_name, self.dc_id, self.dc_type, self.dc_name, self.dc_qps, self.dc_m)
 		return s
 
 
 	def to_csv(self):
-		s = '{:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {:.3f}, {}'.format(self.resp_time, self.comm_req_time, self.query_time, self.comm_resp_time, self.dist_mi, self.src_id, self.src_name, self.src_lat, self.src_lng, self.dest_id, self.dest_type, self.dest_name, self.dc_id, self.dc_type, self.dc_name, self.dc_qps, self.dc_m)		
+		s = '{:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {:.5f}, {}'.format(self.resp_time, self.comm_req_time, self.query_time, self.comm_resp_time, self.dist_mi, self.src_id, self.src_name, self.src_lat, self.src_lng, self.dest_id, self.dest_type, self.dest_name, self.dc_id, self.dc_type, self.dc_name, self.dc_qps, self.dc_m)		
 		return s
 		
 	

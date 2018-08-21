@@ -2,7 +2,9 @@
 
 TEST_DATA=0
 DO_AGGR=1
-DO_QUERY=0
+DO_QUERY=1
+ALLOC_POLICY=fixed
+# ALLOC_POLICY=population
 
 BASE_CMD="python src/sim.py -rt"
 AGGR_CMD="${BASE_CMD} -d"
@@ -14,12 +16,11 @@ if [ ${TEST_DATA} = 1 ] ; then
 fi
 
 mappings=(a b c)
-# s_maps=(0.25 0.5 1.0 2.0)
-s_maps=(0.5)
+s_maps=(0.25 0.5 1.0 2.0)
+# s_maps=(0.5)
 lambdas=(0.1 1 10 100)
-# lambdas=(0.1)
-fixed_machines=(1 2 4 8 16)
-# fixed_machines=() # use 'popoulation' alloc_policy
+# lambdas=(10 100)
+# lambdas=(0.1 1)
 
 function run_cmd { echo "$1"; eval $1; }
 # function run_cmd { echo "$1" ; }
@@ -34,24 +35,12 @@ function run_query {
     fi
 }
 
-if [ ${#fixed_machines[@]} -eq 0 ] ; then
-    for mapping in ${mappings[@]} ; do
-        for sm in ${s_maps[@]} ; do
-            run_aggr "-m ${mapping} -sm ${sm}"
-        done
-        for lambda in ${lambdas[@]} ; do
-            run_query "-m ${mapping} -l ${lambda}"            
-        done
+for mapping in ${mappings[@]} ; do
+    for sm in ${s_maps[@]} ; do
+        run_aggr "-m ${mapping} -sm ${sm} -ap ${ALLOC_POLICY}"
     done
-else
-    for mapping in ${mappings[@]} ; do
-        for f in ${fixed_machines[@]} ; do        
-            for sm in ${s_maps[@]} ; do
-                run_aggr "-m ${mapping} -sm ${sm} -f ${f}"
-            done
-            for lambda in ${lambdas[@]} ; do
-                run_query "-m ${mapping} -l ${lambda} -f ${f}"            
-            done
-        done
-    done    
-fi
+    for lambda in ${lambdas[@]} ; do
+        run_query "-m ${mapping} -l ${lambda} -ap ${ALLOC_POLICY}"
+    done
+done
+

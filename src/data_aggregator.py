@@ -28,12 +28,12 @@ class DataAggregationResult(object):
 
 
 	def __str__(self):
-		s = 'L{}: time(total:{:.3f}, exec:{:.3f}, comm:{:.3f}) s, topo1(id:{}, name:{}), topo2(id:{}, name:{}), dist_mi: {:.3f}, dc1(id:{}, name:{}, data_in:{:.3f} mb, m:{}), dc2(id:{}, name:{})'.format(self.level, self.aggr_time, self.exec_time, self.comm_time, self.topo1_id, self.topo1_name, self.topo2_id, self.topo2_name, self.dist_mi, self.dc1_id, self.dc1_name, (self.dc1_data_in/1e6), self.dc1_m, self.dc2_id, self.dc2_name)
+		s = 'L{}: time(total:{:.5f}, exec:{:.5f}, comm:{:.5f}) s, topo1(id:{}, name:{}), topo2(id:{}, name:{}), dist_mi: {:.5f}, dc1(id:{}, name:{}, data_in:{:.5f} mb, m:{}), dc2(id:{}, name:{})'.format(self.level, self.aggr_time, self.exec_time, self.comm_time, self.topo1_id, self.topo1_name, self.topo2_id, self.topo2_name, self.dist_mi, self.dc1_id, self.dc1_name, (self.dc1_data_in/1e6), self.dc1_m, self.dc2_id, self.dc2_name)
 		return s
 
 	
 	def to_csv(self):
-		s = '{}, {:.3f}, {:.3f}, {:.3f}, {}, {}, {}, {}, {}, {}, {:.3f}, {}, {}, {}'.format(self.level, self.aggr_time, self.exec_time, self.comm_time, self.topo1_id, self.topo1_name, self.topo2_id, self.topo2_name, self.dc1_id, self.dc1_name, (self.dc1_data_in/1e6), self.dc1_m, self.dc2_id, self.dc2_name)		
+		s = '{}, {:.5f}, {:.5f}, {:.5f}, {}, {}, {}, {}, {}, {}, {:.5f}, {}, {}, {}'.format(self.level, self.aggr_time, self.exec_time, self.comm_time, self.topo1_id, self.topo1_name, self.topo2_id, self.topo2_name, self.dc1_id, self.dc1_name, (self.dc1_data_in/1e6), self.dc1_m, self.dc2_id, self.dc2_name)		
 		return s
 
 		

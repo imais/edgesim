@@ -35,7 +35,6 @@ def parse_args():
 	parser.add_argument('-rt','--read_topo', action='store_true')
 	parser.add_argument('-wt','--write_topo_and_done', action='store_true')
 	parser.add_argument('-ap','--alloc_policy', default='population', choices=['population', 'fixed'], type=str)
-	parser.add_argument('-f', '--fixed', type=int)
 
 	args = parser.parse_args()
 	
@@ -49,11 +48,7 @@ def init_conf(args):
 			conf = dict(json.load(f).items() + vars(args).items())
 
 			# overwrite entries in conf with arguments
-			if conf['fixed'] is not None:
-				conf['machine']['alloc_policy'] = 'fixed'
-				conf['machine']['fixed'] = conf['fixed']
-				del conf['fixed']
-			elif conf['alloc_policy'] is not None:
+			if conf['alloc_policy'] is not None:
 				conf['machine']['alloc_policy'] = conf['alloc_policy']
 				del conf['alloc_policy']
 				
@@ -86,18 +81,18 @@ def load_dc(conf):
 	dc = pd.read_csv(dc_file, header=0, index_col=0, sep='\t')
 
 	dc['m'] = ''	
-	if conf['machine']['alloc_policy'] == 'population':
-		L = len(conf['levels'])
-		population_per_machine = conf['machine']['population']['population_per_machine']
-		for l in range(L):
-			ids = dc.loc[dc.type.isin(conf['levels'][str(l)])].index
-			# dc.loc[ids, 'm'] = dc.loc[ids].apply(lambda x: max(1, int((conf['r'] ** l) * (x['population'] / population_per_machine))), axis = 1)
-			dc.loc[ids, 'm'] = dc.loc[ids].apply(lambda x: max(1, int((x['population'] / population_per_machine))), axis = 1)			
-			m = dc.loc[ids, 'm']
-			print('L{} m: mean={}, max={}, min={}, total={}, n={}'.format(l, np.mean(m), np.max(m), np.min(m), sum(m), len(m)))
-	elif conf['machine']['alloc_policy'] == 'fixed':
-		# raise NotImplementedError('fixed allocation policy not implementd')
-		dc['m'] = conf['machine']['fixed']
+	L = len(conf['levels'])
+	population_per_machine = conf['machine']['population']['population_per_machine']
+	for l in range(L):
+		ids = dc.loc[dc.type.isin(conf['levels'][str(l)])].index
+		if conf['machine']['alloc_policy'] == 'population':
+			dc.loc[ids, 'm'] = dc.loc[ids].apply(lambda x: max(1, int((x['population'] / population_per_machine))), axis = 1)
+		elif conf['machine']['alloc_policy'] == 'fixed':
+			dc.loc[ids, 'm'] = conf['machine']['fixed']	[l]
+		else:
+			raise NotImplementedError('unfedined allocation policy specified')
+		m = dc.loc[ids, 'm']
+		print('L{} m: mean={}, max={}, min={}, total={}, n={}'.format(l, np.mean(m), np.max(m), np.min(m), sum(m), len(m)))
 
 	# update later when topology is decided
 	dc['data_in'] = 0.0
@@ -205,7 +200,7 @@ def aggregate_data(conf):
 		alloc_policy = 'None'
 
 	if conf['verbose']:
-		print('Total Aggregation Time: {:.3f} s'.format(total_aggr_time))
+		print('Total Aggregation Time: {:.5f} s'.format(total_aggr_time))
 		print('mapping={}, s_m={}, s_r={}, sensors_per_person={}, alloc_policy={}'\
 			  .format(conf['mapping'], conf['s_m'], conf['s_r'], conf['sensors_per_person'], alloc_policy))
 		for result in results:
@@ -213,10 +208,10 @@ def aggregate_data(conf):
 		print("Tx Data (mobile/WAN/LAN) = {} Gbytes, Machine hours = {}, {}".format(tx_stats, mh, sum(mh)))
 	else:
 		l = ['{}, {}, {}, {}'.format(conf['mapping'], conf['s_m'], conf['s_r'], alloc_policy)]
-		l += ['{:3f}'.format(total_aggr_time)]
+		l += ['{:5f}'.format(total_aggr_time)]
 		l += [result.to_csv() for result in results]
-		l += ['{:.3f}, {:.3f}, {:.3f}'.format(tx_stats[0], tx_stats[1], tx_stats[2])]
-		l += ['{:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}'.format(mh[0], mh[1], mh[2], mh[3], sum(mh))]
+		l += ['{:.5f}, {:.5f}, {:.5f}'.format(tx_stats[0], tx_stats[1], tx_stats[2])]
+		l += ['{:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}'.format(mh[0], mh[1], mh[2], mh[3], sum(mh))]
 		print('DataAggrResults: {}'.format(', '.join(l)))
 
 
@@ -254,10 +249,10 @@ def query_data(conf):
 		print('mapping={}, lambda={} ms'.format(conf['mapping'], conf['lambda_ms']))
 		print('Max: {}'.format(max_query))
 		print('Min: {}'.format(min_query))
-		print('Avg: {:.3f} ms'.format(avg_time))
+		print('Avg: {:.5f} ms'.format(avg_time))
 	else:
 		l = ['{}, {}'.format(conf['lambda_ms'], conf['mapping'])]
-		l += [max_query.to_csv(), min_query.to_csv(), '{:.3f}'.format(avg_time)]
+		l += [max_query.to_csv(), min_query.to_csv(), '{:.5f}'.format(avg_time)]
 		print('QueryResults: {}'.format(', '.join(l)))
 
 	# CDF
